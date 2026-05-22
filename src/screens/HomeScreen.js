@@ -1,5 +1,13 @@
 import React, { useCallback, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import api, { errorMessage } from '../api/client';
@@ -20,8 +28,8 @@ export default function HomeScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [showMenu, setShowMenu] = useState(false);
 
-  // The mobile app always shows the current month; pick up the latest "now" on each focus.
   const load = useCallback(async () => {
     try {
       setError('');
@@ -84,7 +92,6 @@ export default function HomeScreen({ navigation }) {
       >
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {/* Hero total — always this month */}
         <View style={styles.hero}>
           <Text style={styles.heroLabel}>TOTAL · {monthLabelShort(monthKey).toUpperCase()}</Text>
           <Text style={styles.heroValue}>{money(grandTotal)}</Text>
@@ -93,7 +100,6 @@ export default function HomeScreen({ navigation }) {
           </Text>
         </View>
 
-        {/* By person */}
         <Card style={styles.panel}>
           <SectionHeader title="By person" />
           {lists.length === 0 ? (
@@ -112,13 +118,11 @@ export default function HomeScreen({ navigation }) {
           )}
         </Card>
 
-        {/* By category */}
         <Card style={styles.panel}>
           <SectionHeader title="By category" />
           <CategoryBreakdown data={byCategory} emptyHint="No spending recorded yet." />
         </Card>
 
-        {/* Recent */}
         <Card style={styles.panel}>
           <SectionHeader
             title="Recent"
@@ -144,12 +148,77 @@ export default function HomeScreen({ navigation }) {
         </Card>
       </ScrollView>
 
-      <Pressable style={styles.fab} onPress={() => navigation.navigate('AddEntry', {})}>
+      <Pressable style={styles.fab} onPress={() => setShowMenu(true)}>
         <Ionicons name="add" size={30} color={colors.white} />
       </Pressable>
+
+      <AddMenu
+        visible={showMenu}
+        onClose={() => setShowMenu(false)}
+        onFuel={() => {
+          setShowMenu(false);
+          navigation.navigate('FuelEntry', {});
+        }}
+        onExpense={() => {
+          setShowMenu(false);
+          navigation.navigate('AddEntry', {});
+        }}
+      />
     </View>
   );
 }
+
+function AddMenu({ visible, onClose, onFuel, onExpense }) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={menuStyles.backdrop} onPress={onClose}>
+        <Pressable style={menuStyles.sheet} onPress={() => {}}>
+          <Text style={menuStyles.title}>Add</Text>
+          <Pressable style={menuStyles.row} onPress={onFuel}>
+            <View style={[menuStyles.icon, { backgroundColor: `${colors.accent}1f` }]}>
+              <Ionicons name="car-sport" size={22} color={colors.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={menuStyles.rowTitle}>Fuel</Text>
+              <Text style={menuStyles.rowSub}>Log a refill — rate, amount, odometer</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.inkSoft} />
+          </Pressable>
+          <View style={menuStyles.divider} />
+          <Pressable style={menuStyles.row} onPress={onExpense}>
+            <View style={[menuStyles.icon, { backgroundColor: `${colors.ink}11` }]}>
+              <Ionicons name="cart-outline" size={22} color={colors.ink} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={menuStyles.rowTitle}>Other expense</Text>
+              <Text style={menuStyles.rowSub}>Groceries, household, anything else</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.inkSoft} />
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const menuStyles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: colors.bg,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    padding: 18,
+    paddingBottom: 32,
+    borderTopWidth: 1,
+    borderColor: colors.rule,
+  },
+  title: { fontFamily: fonts.serifMediumItalic, fontSize: 22, color: colors.ink, marginBottom: 8 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14 },
+  icon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  rowTitle: { fontFamily: fonts.sansSemibold, fontSize: 15, color: colors.ink },
+  rowSub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.inkSoft, marginTop: 2 },
+  divider: { height: 1, backgroundColor: colors.rule },
+});
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },

@@ -9,6 +9,8 @@ import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
 import ListDetailScreen from '../screens/ListDetailScreen';
 import AddEntryScreen from '../screens/AddEntryScreen';
+import FuelScreen from '../screens/FuelScreen';
+import FuelEntryScreen from '../screens/FuelEntryScreen';
 import ScanScreen from '../screens/ScanScreen';
 import SmsScreen from '../screens/SmsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -18,6 +20,7 @@ const Tab = createBottomTabNavigator();
 
 const TAB_ICONS = {
   Home: 'pie-chart',
+  Fuel: 'car-sport',
   Scan: 'scan',
   SMS: 'chatbubbles',
   Settings: 'settings',
@@ -52,6 +55,7 @@ function Tabs() {
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Fuel" component={FuelScreen} />
       <Tab.Screen name="Scan" component={ScanScreen} />
       <Tab.Screen name="SMS" component={SmsScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
@@ -75,6 +79,7 @@ export default function RootNavigator() {
           <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
           <Stack.Screen name="ListDetail" component={ListDetailScreen} options={{ title: 'List' }} />
           <Stack.Screen name="AddEntry" component={AddEntryScreen} options={{ title: 'Add Expense' }} />
+          <Stack.Screen name="FuelEntry" component={FuelEntryScreen} options={{ title: 'New refill' }} />
         </>
       )}
     </Stack.Navigator>
