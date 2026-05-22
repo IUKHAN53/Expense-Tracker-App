@@ -1,11 +1,18 @@
 import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import api, { errorMessage } from '../api/client';
-import { Button, Loading, PickerModal, SelectField, TextField } from '../components/ui';
-import { colors, formatDate, listIcon } from '../theme';
+import { Avatar, Button, CatChip, KLabel, Loading } from '../components/ui';
+import { colors, fonts, formatDate } from '../theme';
 
-/** Format a JS Date as "YYYY-MM-DD HH:MM:SS" for the API. */
 function toServerDate(d) {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`;
@@ -40,12 +47,10 @@ export default function AddEntryScreen({ route, navigation }) {
   const [odometer, setOdometer] = useState(
     editing?.odometer != null ? String(editing.odometer) : '',
   );
-
-  const [picker, setPicker] = useState(null); // 'list' | 'category'
-  const [dateMode, setDateMode] = useState(null); // 'date' | 'time'
+  const [dateMode, setDateMode] = useState(null);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: editing ? 'Edit Item' : 'Add Item' });
+    navigation.setOptions({ title: editing ? 'Edit Expense' : 'New Expense' });
   }, [navigation, editing]);
 
   useEffect(() => {
@@ -66,20 +71,17 @@ export default function AddEntryScreen({ route, navigation }) {
   }, []);
 
   const selectedList = useMemo(() => lists.find((l) => l.id === listId), [lists, listId]);
-  const selectedCategory = useMemo(
-    () => categories.find((c) => c.id === categoryId),
-    [categories, categoryId],
-  );
   const isVehicle = selectedList?.type === 'vehicle';
 
   const save = async () => {
-    if (!listId) return setError('Please choose a list.');
-    if (!itemName.trim()) return setError('Please enter an item name.');
-    if (!amount || Number.isNaN(Number(amount))) return setError('Please enter a valid amount.');
+    if (!listId) return setError('Choose whose expense this is.');
+    if (!itemName.trim()) return setError('Add a short note for the expense.');
+    if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
+      return setError('Enter a valid amount.');
+    }
 
     setSaving(true);
     setError('');
-
     const payload = {
       spending_list_id: listId,
       category_id: categoryId,
@@ -102,13 +104,13 @@ export default function AddEntryScreen({ route, navigation }) {
       }
       navigation.goBack();
     } catch (e) {
-      setError(errorMessage(e, 'Could not save the item.'));
+      setError(errorMessage(e, 'Could not save the expense.'));
       setSaving(false);
     }
   };
 
   const remove = () => {
-    Alert.alert('Delete item', 'Remove this entry permanently?', [
+    Alert.alert('Delete expense', 'Remove this entry permanently?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -130,126 +132,169 @@ export default function AddEntryScreen({ route, navigation }) {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <SelectField
-        label="List *"
-        placeholder="Choose a person, Home or Car"
-        valueLabel={selectedList?.name}
-        color={selectedList?.color}
-        onPress={() => setPicker('list')}
-      />
-
-      <TextField
-        label="Item name *"
-        value={itemName}
-        onChangeText={setItemName}
-        placeholder="e.g. Milk, Rice, Petrol"
-      />
-
-      <TextField
-        label="Amount (Rs) *"
-        value={amount}
-        onChangeText={setAmount}
-        placeholder="0"
-        keyboardType="numeric"
-      />
-
-      <View style={styles.row}>
-        <TextField
-          label="Quantity"
-          value={quantity}
-          onChangeText={setQuantity}
-          placeholder="1"
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.body}
+      keyboardShouldPersistTaps="handled"
+    >
+      {/* Big amount */}
+      <KLabel>Amount</KLabel>
+      <View style={styles.amountRow}>
+        <Text style={styles.rs}>Rs</Text>
+        <TextInput
+          value={amount}
+          onChangeText={setAmount}
+          placeholder="0"
+          placeholderTextColor={colors.rule}
           keyboardType="numeric"
-          style={styles.rowItem}
-        />
-        <TextField
-          label="Unit"
-          value={unit}
-          onChangeText={setUnit}
-          placeholder="kg, ltr, pcs"
-          style={styles.rowItem}
+          style={styles.amountInput}
         />
       </View>
+      <View style={styles.amountRule} />
 
-      <SelectField
-        label="Category"
-        placeholder="No category"
-        valueLabel={selectedCategory?.name}
-        color={selectedCategory?.color}
-        onPress={() => setPicker('category')}
+      {/* Whose expense */}
+      <Text style={styles.qLabel}>Whose expense?</Text>
+      <View style={styles.grid}>
+        {lists.map((l) => {
+          const active = l.id === listId;
+          return (
+            <Pressable
+              key={l.id}
+              onPress={() => setListId(l.id)}
+              style={[styles.personCell, active && styles.cellActive]}
+            >
+              <Avatar name={l.name} type={l.type} size={32} />
+              <Text style={styles.cellLabel} numberOfLines={1}>{l.name}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Category */}
+      <Text style={styles.qLabel}>Category</Text>
+      <View style={styles.grid}>
+        {categories.map((c) => {
+          const active = c.id === categoryId;
+          return (
+            <Pressable
+              key={c.id}
+              onPress={() => setCategoryId(active ? null : c.id)}
+              style={[styles.catCell, active && styles.cellActive]}
+            >
+              <CatChip name={c.name} size={28} />
+              <Text style={styles.catLabel} numberOfLines={1}>{c.name.split(' ')[0]}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Note */}
+      <Text style={styles.qLabel}>What was it?</Text>
+      <TextInput
+        value={itemName}
+        onChangeText={setItemName}
+        placeholder="e.g. Sunday sabzi mandi"
+        placeholderTextColor={colors.inkSoft}
+        style={styles.field}
       />
 
-      <View style={styles.row}>
-        <View style={styles.rowItem}>
-          <Text style={styles.label}>Date</Text>
-          <Pressable style={styles.dateBox} onPress={() => setDateMode('date')}>
-            <Text style={styles.dateText}>{formatDate(purchasedAt.toISOString())}</Text>
+      {/* Date */}
+      <View style={styles.dateRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.qLabel}>Date</Text>
+          <Pressable style={styles.field} onPress={() => setDateMode('date')}>
+            <Text style={styles.fieldText}>{formatDate(purchasedAt.toISOString())}</Text>
           </Pressable>
         </View>
-        <View style={styles.rowItem}>
-          <Text style={styles.label}>Time</Text>
-          <Pressable style={styles.dateBox} onPress={() => setDateMode('time')}>
-            <Text style={styles.dateText}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.qLabel}>Time</Text>
+          <Pressable style={styles.field} onPress={() => setDateMode('time')}>
+            <Text style={styles.fieldText}>
               {formatDate(purchasedAt.toISOString(), true).split(', ')[1]}
             </Text>
           </Pressable>
         </View>
       </View>
 
+      {/* Quantity / unit */}
+      <View style={styles.dateRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.qLabel}>Quantity</Text>
+          <TextInput
+            value={quantity}
+            onChangeText={setQuantity}
+            placeholder="1"
+            placeholderTextColor={colors.inkSoft}
+            keyboardType="numeric"
+            style={styles.field}
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.qLabel}>Unit</Text>
+          <TextInput
+            value={unit}
+            onChangeText={setUnit}
+            placeholder="kg, ltr, pcs"
+            placeholderTextColor={colors.inkSoft}
+            style={styles.field}
+          />
+        </View>
+      </View>
+
+      {/* Fuel — only for the Car / vehicle list */}
       {isVehicle ? (
         <View style={styles.fuelBox}>
-          <Text style={styles.fuelTitle}>Fuel details (optional)</Text>
-          <View style={styles.row}>
-            <TextField
-              label="Litres"
-              value={fuelLiters}
-              onChangeText={setFuelLiters}
-              placeholder="0"
-              keyboardType="numeric"
-              style={styles.rowItem}
-            />
-            <TextField
-              label="Rate (Rs/L)"
-              value={fuelRate}
-              onChangeText={setFuelRate}
-              placeholder="0"
-              keyboardType="numeric"
-              style={styles.rowItem}
-            />
+          <Text style={styles.fuelTitle}>Fuel details</Text>
+          <View style={styles.dateRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.qLabel}>Litres</Text>
+              <TextInput
+                value={fuelLiters}
+                onChangeText={setFuelLiters}
+                placeholder="0"
+                placeholderTextColor={colors.inkSoft}
+                keyboardType="numeric"
+                style={styles.field}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.qLabel}>Rate/L</Text>
+              <TextInput
+                value={fuelRate}
+                onChangeText={setFuelRate}
+                placeholder="0"
+                placeholderTextColor={colors.inkSoft}
+                keyboardType="numeric"
+                style={styles.field}
+              />
+            </View>
           </View>
-          <TextField
-            label="Odometer (km)"
+          <Text style={styles.qLabel}>Odometer (km)</Text>
+          <TextInput
             value={odometer}
             onChangeText={setOdometer}
             placeholder="0"
+            placeholderTextColor={colors.inkSoft}
             keyboardType="numeric"
+            style={styles.field}
           />
         </View>
       ) : null}
 
-      <TextField
-        label="Notes"
-        value={notes}
-        onChangeText={setNotes}
-        placeholder="Optional"
-        multiline
-      />
-
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <Button
-        title={editing ? 'Save Changes' : 'Add Item'}
+        title={editing ? 'Save changes' : 'Save expense'}
         onPress={save}
         loading={saving}
         icon="checkmark"
+        style={{ marginTop: 8 }}
       />
-
       {editing ? (
         <Button
-          title="Delete Item"
+          title="Delete expense"
           onPress={remove}
-          variant="danger"
+          variant="outline"
           icon="trash-outline"
           style={{ marginTop: 10 }}
         />
@@ -266,58 +311,84 @@ export default function AddEntryScreen({ route, navigation }) {
           }}
         />
       ) : null}
-
-      <PickerModal
-        visible={picker === 'list'}
-        title="Choose a list"
-        options={lists.map((l) => ({
-          value: l.id,
-          label: l.name,
-          color: l.color,
-          icon: listIcon(l.type),
-        }))}
-        onSelect={setListId}
-        onClose={() => setPicker(null)}
-      />
-
-      <PickerModal
-        visible={picker === 'category'}
-        title="Choose a category"
-        options={[
-          { value: null, label: 'No category' },
-          ...categories.map((c) => ({ value: c.id, label: c.name, color: c.color })),
-        ]}
-        onSelect={setCategoryId}
-        onClose={() => setPicker(null)}
-      />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, paddingBottom: 40 },
-  row: { flexDirection: 'row', marginHorizontal: -6 },
-  rowItem: { flex: 1, marginHorizontal: 6 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 6 },
-  dateBox: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 13,
-    marginBottom: 14,
+  body: { padding: 20, paddingBottom: 44 },
+  amountRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 4 },
+  rs: { fontFamily: fonts.serif, fontSize: 30, color: colors.inkSoft },
+  amountInput: {
+    flex: 1,
+    fontFamily: fonts.serifMedium,
+    fontSize: 52,
+    color: colors.ink,
+    padding: 0,
+    letterSpacing: -1.5,
   },
-  dateText: { fontSize: 15, color: colors.text },
-  fuelBox: {
-    backgroundColor: '#fef2f2',
+  amountRule: { height: 1, backgroundColor: colors.rule, marginTop: 4, marginBottom: 22 },
+  qLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+    color: colors.inkSoft,
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -3, marginBottom: 14 },
+  personCell: {
+    width: '25%',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 10,
+    paddingHorizontal: 3,
     borderRadius: 12,
-    padding: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  catCell: {
+    width: '20%',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 9,
+    paddingHorizontal: 2,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  cellActive: { borderColor: colors.ink, backgroundColor: colors.soft },
+  cellLabel: { fontFamily: fonts.sans, fontSize: 11, color: colors.ink },
+  catLabel: { fontFamily: fonts.sans, fontSize: 9.5, color: colors.ink },
+  field: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.rule,
+    borderRadius: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontFamily: fonts.sans,
+    color: colors.ink,
+    marginBottom: 14,
+  },
+  fieldText: { fontSize: 15, fontFamily: fonts.sans, color: colors.ink },
+  dateRow: { flexDirection: 'row', gap: 12 },
+  fuelBox: {
+    backgroundColor: '#fbeee0',
+    borderRadius: 14,
+    padding: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#fecaca',
+    borderColor: 'rgba(201,98,31,0.25)',
   },
-  fuelTitle: { fontSize: 13, fontWeight: '700', color: colors.danger, marginBottom: 8 },
-  error: { color: colors.danger, fontSize: 13, marginBottom: 12 },
+  fuelTitle: {
+    fontFamily: fonts.serifMediumItalic,
+    fontSize: 16,
+    color: colors.accent,
+    marginBottom: 8,
+  },
+  error: { color: colors.alarm, fontSize: 13, marginBottom: 12, fontFamily: fonts.sans },
 });

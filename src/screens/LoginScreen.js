@@ -7,15 +7,17 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../api/client';
-import { Button, TextField } from '../components/ui';
-import { colors } from '../theme';
+import { Button, Card, TextField } from '../components/ui';
+import { Mark } from '../components/Logo';
+import { colors, fonts } from '../theme';
+
+const DEFAULT_SERVER = 'https://expense.iukhan.tech';
 
 export default function LoginScreen() {
   const { login, baseUrl } = useAuth();
-  const [server, setServer] = useState(baseUrl || '');
+  const [server, setServer] = useState(baseUrl || DEFAULT_SERVER);
   const [email, setEmail] = useState('admin@expense.app');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -23,7 +25,7 @@ export default function LoginScreen() {
 
   const onSubmit = async () => {
     if (!server.trim() || !email.trim() || !password) {
-      setError('Please fill in the server URL, email and password.');
+      setError('Please fill in the server, email and password.');
       return;
     }
     setBusy(true);
@@ -43,28 +45,27 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.logo}>
-          <Ionicons name="wallet" size={40} color={colors.white} />
+        <View style={styles.brand}>
+          <Mark size={66} />
+          <Text style={styles.wordmark}>kharcha</Text>
+          <Text style={styles.tagline}>Household Ledger</Text>
         </View>
-        <Text style={styles.title}>Expense Tracker</Text>
-        <Text style={styles.subtitle}>Track who spent what at home.</Text>
 
-        <View style={styles.form}>
+        <Card style={styles.form}>
           <TextField
-            label="Server URL"
+            label="Server"
             value={server}
             onChangeText={setServer}
-            placeholder="http://192.168.1.10:8787"
+            placeholder="https://expense.iukhan.tech"
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
-            hint="Your Laravel server address, reachable on the same Wi-Fi."
           />
           <TextField
             label="Email"
             value={email}
             onChangeText={setEmail}
-            placeholder="admin@expense.app"
+            placeholder="you@example.com"
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="email-address"
@@ -77,8 +78,10 @@ export default function LoginScreen() {
             secureTextEntry
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <Button title="Sign In" onPress={onSubmit} loading={busy} icon="log-in-outline" />
-        </View>
+          <Button title="Sign In" onPress={onSubmit} loading={busy} icon="arrow-forward" />
+        </Card>
+
+        <Text style={styles.footnote}>Private ledger · Pakistani Rupee</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -86,30 +89,30 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.bg },
-  container: { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  logo: {
-    width: 78,
-    height: 78,
-    borderRadius: 22,
-    backgroundColor: colors.primary,
-    alignSelf: 'center',
-    alignItems: 'center',
-    justifyContent: 'center',
+  container: { flexGrow: 1, justifyContent: 'center', padding: 26 },
+  brand: { alignItems: 'center', marginBottom: 26 },
+  wordmark: {
+    fontFamily: fonts.serifMediumItalic,
+    fontSize: 44,
+    color: colors.ink,
+    marginTop: 14,
+    letterSpacing: -1,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.text,
+  tagline: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    letterSpacing: 2.4,
+    textTransform: 'uppercase',
+    color: colors.inkSoft,
+    marginTop: 6,
+  },
+  form: { padding: 22 },
+  error: { color: colors.alarm, fontSize: 13, marginBottom: 12, fontFamily: fonts.sans },
+  footnote: {
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: 22,
+    fontFamily: fonts.serifItalic,
+    fontSize: 13,
+    color: colors.inkSoft,
   },
-  subtitle: { fontSize: 14, color: colors.muted, textAlign: 'center', marginTop: 4, marginBottom: 24 },
-  form: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  error: { color: colors.danger, fontSize: 13, marginBottom: 12 },
 });

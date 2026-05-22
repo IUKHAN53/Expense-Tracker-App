@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "dependencies": {
+    "@expo-google-fonts/geist": "^0.4.2",
+    "@expo-google-fonts/geist-mono": "^0.4.2",
+    "@expo-google-fonts/newsreader": "^0.4.1",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "9.1.0",
@@ -13,12 +16,14 @@
     "expo": "~56.0.3",
     "expo-font": "~56.0.5",
     "expo-image-picker": "~56.0.12",
+    "expo-splash-screen": "~56.0.9",
     "expo-status-bar": "~56.0.4",
     "react": "19.2.3",
     "react-native": "0.85.3",
     "react-native-get-sms-android": "^2.1.0",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "4.25.1"
+    "react-native-screens": "4.25.1",
+    "react-native-svg": "15.15.4"
   },
   "scripts": {
     "start": "expo start",

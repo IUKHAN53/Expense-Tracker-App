@@ -11,14 +11,15 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import api, { errorMessage } from '../api/client';
-import { Button, Card, Loading, PickerModal } from '../components/ui';
-import { colors, listIcon, money } from '../theme';
+import { AppHeader } from '../components/Header';
+import { Avatar, Button, Card, Loading, PickerModal } from '../components/ui';
+import { colors, fonts, money, personColor } from '../theme';
 
 const TYPE_LABEL = {
   grocery: 'Grocery',
   fuel: 'Fuel / Petrol',
   pharmacy: 'Pharmacy',
-  other: 'Other',
+  other: 'Receipt',
 };
 
 export default function ScanScreen() {
@@ -27,16 +28,13 @@ export default function ScanScreen() {
   const [scan, setScan] = useState(null);
   const [items, setItems] = useState([]);
   const [preview, setPreview] = useState(null);
-  const [picker, setPicker] = useState(null); // null | number (item index) | 'all'
+  const [picker, setPicker] = useState(null);
   const [confirming, setConfirming] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api
-      .get('/lists')
-      .then((res) => setLists(res.data.data || []))
-      .catch(() => {});
+    api.get('/lists').then((res) => setLists(res.data.data || [])).catch(() => {});
   }, []);
 
   const listById = (id) => lists.find((l) => l.id === id);
@@ -55,14 +53,12 @@ export default function ScanScreen() {
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      setError('Permission to use the ' + (fromCamera ? 'camera' : 'gallery') + ' was denied.');
+      setError(`Permission to use the ${fromCamera ? 'camera' : 'gallery'} was denied.`);
       return;
     }
-
     const result = fromCamera
       ? await ImagePicker.launchCameraAsync({ quality: 0.6 })
       : await ImagePicker.launchImageLibraryAsync({ quality: 0.6 });
-
     if (result.canceled || !result.assets?.length) return;
     await upload(result.assets[0]);
   };
@@ -71,14 +67,12 @@ export default function ScanScreen() {
     setPhase('uploading');
     setPreview(asset.uri);
     setError('');
-
     const form = new FormData();
     form.append('image', {
       uri: asset.uri,
       name: asset.fileName || 'receipt.jpg',
       type: asset.mimeType || 'image/jpeg',
     });
-
     try {
       const res = await api.post('/receipts/scan', form);
       const data = res.data;
@@ -104,9 +98,7 @@ export default function ScanScreen() {
     if (index === 'all') {
       setItems((prev) => prev.map((it) => ({ ...it, spending_list_id: listId })));
     } else {
-      setItems((prev) =>
-        prev.map((it, i) => (i === index ? { ...it, spending_list_id: listId } : it)),
-      );
+      setItems((prev) => prev.map((it, i) => (i === index ? { ...it, spending_list_id: listId } : it)));
     }
   };
 
@@ -118,9 +110,7 @@ export default function ScanScreen() {
     for (const it of items) {
       if (!it.spending_list_id) return setError('Every item needs a list.');
       if (!it.item_name.trim()) return setError('Every item needs a name.');
-      if (!it.amount || Number.isNaN(Number(it.amount))) {
-        return setError('Every item needs a valid amount.');
-      }
+      if (!it.amount || Number.isNaN(Number(it.amount))) return setError('Every item needs an amount.');
     }
     setConfirming(true);
     setError('');
@@ -144,224 +134,237 @@ export default function ScanScreen() {
     }
   };
 
-  // ----- Render -----
+  const listOptions = lists.map((l) => ({
+    value: l.id,
+    label: l.name,
+    swatch: personColor(l.name).bg,
+  }));
 
-  if (phase === 'uploading') {
-    return (
-      <View style={styles.center}>
-        {preview ? <Image source={{ uri: preview }} style={styles.uploadPreview} /> : null}
-        <Loading label="Reading the receipt with AI…" />
-      </View>
-    );
-  }
-
-  if (phase === 'done') {
-    return (
-      <View style={styles.center}>
-        <Ionicons name="checkmark-circle" size={72} color={colors.success} />
-        <Text style={styles.doneTitle}>
-          {savedCount} {savedCount === 1 ? 'item' : 'items'} saved
-        </Text>
-        <Text style={styles.doneSub}>The receipt has been split into entries.</Text>
-        <Button title="Scan Another" onPress={reset} icon="scan" style={{ marginTop: 20, paddingHorizontal: 32 }} />
-      </View>
-    );
-  }
-
-  if (phase === 'review') {
-    const total = items.reduce((s, it) => s + (Number(it.amount) || 0), 0);
-    return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <Card style={styles.receiptCard}>
-          <View style={styles.receiptRow}>
-            {preview ? <Image source={{ uri: preview }} style={styles.thumb} /> : null}
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.merchant}>{scan.receipt.merchant || 'Unknown shop'}</Text>
-              <Text style={styles.receiptMeta}>
-                {TYPE_LABEL[scan.receipt.receipt_type] || 'Receipt'}
-                {scan.receipt.total ? ` · ${money(scan.receipt.total)}` : ''}
-              </Text>
-            </View>
-          </View>
-          {scan.is_fuel ? (
-            <View style={styles.fuelBanner}>
-              <Ionicons name="car-sport" size={16} color={colors.danger} />
-              <Text style={styles.fuelBannerText}>
-                Petrol receipt — automatically assigned to the Car list.
-              </Text>
-            </View>
-          ) : null}
-        </Card>
-
-        <View style={styles.assignAllRow}>
-          <Text style={styles.sectionTitle}>
-            {items.length} {items.length === 1 ? 'item' : 'items'}
-          </Text>
-          <Pressable onPress={() => setPicker('all')} hitSlop={8}>
-            <Text style={styles.assignAll}>Assign all →</Text>
-          </Pressable>
-        </View>
-
-        {items.map((it, index) => {
-          const list = listById(it.spending_list_id);
-          return (
-            <Card key={index} style={styles.itemCard}>
-              <TextInput
-                value={it.item_name}
-                onChangeText={(v) => updateItem(index, 'item_name', v)}
-                style={styles.itemName}
-                placeholder="Item name"
-                placeholderTextColor={colors.muted}
-              />
-              <View style={styles.itemBottom}>
-                <View style={styles.amountWrap}>
-                  <Text style={styles.rs}>Rs</Text>
-                  <TextInput
-                    value={it.amount}
-                    onChangeText={(v) => updateItem(index, 'amount', v)}
-                    style={styles.amountInput}
-                    keyboardType="numeric"
-                    placeholder="0"
-                    placeholderTextColor={colors.muted}
-                  />
-                </View>
-                <Pressable style={styles.listChip} onPress={() => setPicker(index)}>
-                  <View style={[styles.dot, { backgroundColor: list?.color || colors.border }]} />
-                  <Text style={styles.listChipText} numberOfLines={1}>
-                    {list?.name || 'Pick list'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={14} color={colors.muted} />
-                </Pressable>
-              </View>
-            </Card>
-          );
-        })}
-
-        <Text style={styles.totalLine}>Total: {money(total)}</Text>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <Button
-          title="Save All Items"
-          onPress={confirm}
-          loading={confirming}
-          icon="checkmark"
-        />
-        <Button title="Cancel" variant="outline" onPress={reset} style={{ marginTop: 10 }} />
-
-        <PickerModal
-          visible={picker !== null}
-          title={picker === 'all' ? 'Assign all items to' : 'Assign item to'}
-          options={lists.map((l) => ({
-            value: l.id,
-            label: l.name,
-            color: l.color,
-            icon: listIcon(l.type),
-          }))}
-          onSelect={(listId) => setItemList(picker, listId)}
-          onClose={() => setPicker(null)}
-        />
-      </ScrollView>
-    );
-  }
-
-  // idle
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.idle}>
-      <View style={styles.idleIcon}>
-        <Ionicons name="scan" size={44} color={colors.primary} />
-      </View>
-      <Text style={styles.idleTitle}>Scan a Receipt or Bill</Text>
-      <Text style={styles.idleText}>
-        Take a photo of a shop receipt, grocery bill or petrol slip. The AI reads the items so you
-        can assign each one to a person, Home or Car. Petrol receipts go to the Car list
-        automatically.
-      </Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Button title="Take Photo" icon="camera" onPress={() => pickImage(true)} />
-      <Button
-        title="Choose from Gallery"
-        variant="outline"
-        icon="images"
-        onPress={() => pickImage(false)}
-        style={{ marginTop: 12 }}
+    <View style={styles.screen}>
+      <AppHeader title="Scan" />
+
+      {phase === 'uploading' ? (
+        <View style={styles.center}>
+          {preview ? <Image source={{ uri: preview }} style={styles.uploadPreview} /> : null}
+          <Loading label="Reading the receipt with AI…" />
+        </View>
+      ) : phase === 'done' ? (
+        <View style={styles.center}>
+          <Ionicons name="checkmark-circle" size={70} color={colors.accent2} />
+          <Text style={styles.doneTitle}>
+            {savedCount} {savedCount === 1 ? 'expense' : 'expenses'} saved
+          </Text>
+          <Text style={styles.doneSub}>The receipt was split into entries.</Text>
+          <Button title="Scan another" onPress={reset} icon="scan" style={styles.doneBtn} />
+        </View>
+      ) : phase === 'review' ? (
+        <ScrollView contentContainerStyle={styles.body}>
+          <Card style={styles.receiptCard}>
+            <View style={styles.receiptRow}>
+              {preview ? <Image source={{ uri: preview }} style={styles.thumb} /> : null}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.merchant}>{scan.receipt.merchant || 'Unknown shop'}</Text>
+                <Text style={styles.receiptMeta}>
+                  {TYPE_LABEL[scan.receipt.receipt_type] || 'Receipt'}
+                  {scan.receipt.total ? ` · ${money(scan.receipt.total)}` : ''}
+                </Text>
+              </View>
+            </View>
+            {scan.is_fuel ? (
+              <View style={styles.fuelBanner}>
+                <Ionicons name="car-sport" size={15} color={colors.accent} />
+                <Text style={styles.fuelBannerText}>Petrol receipt — assigned to the Car list.</Text>
+              </View>
+            ) : null}
+          </Card>
+
+          <View style={styles.assignRow}>
+            <Text style={styles.kLabel}>
+              {items.length} {items.length === 1 ? 'item' : 'items'}
+            </Text>
+            <Pressable onPress={() => setPicker('all')} hitSlop={8}>
+              <Text style={styles.assignAll}>Assign all →</Text>
+            </Pressable>
+          </View>
+
+          {items.map((it, index) => {
+            const list = listById(it.spending_list_id);
+            return (
+              <Card key={index} style={styles.itemCard}>
+                <TextInput
+                  value={it.item_name}
+                  onChangeText={(v) => updateItem(index, 'item_name', v)}
+                  style={styles.itemName}
+                  placeholder="Item name"
+                  placeholderTextColor={colors.inkSoft}
+                />
+                <View style={styles.itemBottom}>
+                  <View style={styles.amountWrap}>
+                    <Text style={styles.rs}>Rs</Text>
+                    <TextInput
+                      value={it.amount}
+                      onChangeText={(v) => updateItem(index, 'amount', v)}
+                      style={styles.amountInput}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      placeholderTextColor={colors.inkSoft}
+                    />
+                  </View>
+                  <Pressable style={styles.listChip} onPress={() => setPicker(index)}>
+                    {list ? <Avatar name={list.name} type={list.type} size={20} /> : null}
+                    <Text style={styles.listChipText} numberOfLines={1}>
+                      {list ? list.name : 'Pick list'}
+                    </Text>
+                    <Ionicons name="chevron-down" size={14} color={colors.inkSoft} />
+                  </Pressable>
+                </View>
+              </Card>
+            );
+          })}
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <Button title="Save all expenses" onPress={confirm} loading={confirming} icon="checkmark" />
+          <Button title="Cancel" variant="outline" onPress={reset} style={{ marginTop: 10 }} />
+        </ScrollView>
+      ) : (
+        <ScrollView contentContainerStyle={styles.idle}>
+          <View style={styles.idleIcon}>
+            <Ionicons name="scan" size={40} color={colors.accent} />
+          </View>
+          <Text style={styles.idleTitle}>Scan a receipt</Text>
+          <Text style={styles.idleText}>
+            Photograph a shop receipt, grocery bill or petrol slip. The AI reads each item so you
+            can assign it to a person. Petrol receipts go to the Car list automatically.
+          </Text>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <Button title="Take photo" icon="camera" onPress={() => pickImage(true)} />
+          <Button
+            title="Choose from gallery"
+            variant="outline"
+            icon="images"
+            onPress={() => pickImage(false)}
+            style={{ marginTop: 12 }}
+          />
+        </ScrollView>
+      )}
+
+      <PickerModal
+        visible={picker !== null}
+        title={picker === 'all' ? 'Assign all items to' : 'Assign item to'}
+        options={listOptions}
+        onSelect={(listId) => setItemList(picker, listId)}
+        onClose={() => setPicker(null)}
       />
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, paddingBottom: 40 },
-  center: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  idle: { padding: 24, alignItems: 'stretch' },
+  body: { padding: 16, paddingBottom: 40 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  idle: { padding: 24 },
   idleIcon: {
-    width: 88,
-    height: 88,
-    borderRadius: 26,
-    backgroundColor: '#e0e7ff',
+    width: 86,
+    height: 86,
+    borderRadius: 24,
+    backgroundColor: colors.soft,
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 18,
+  },
+  idleTitle: {
+    fontFamily: fonts.serifMediumItalic,
+    fontSize: 24,
+    color: colors.ink,
+    textAlign: 'center',
     marginTop: 16,
   },
-  idleTitle: { fontSize: 20, fontWeight: '800', color: colors.text, textAlign: 'center', marginTop: 16 },
-  idleText: { fontSize: 14, color: colors.muted, textAlign: 'center', marginVertical: 16, lineHeight: 20 },
-  uploadPreview: { width: 120, height: 160, borderRadius: 10, marginBottom: 20 },
-  receiptCard: { padding: 14 },
-  receiptRow: { flexDirection: 'row', alignItems: 'center' },
-  thumb: { width: 54, height: 54, borderRadius: 8, backgroundColor: colors.border },
-  merchant: { fontSize: 16, fontWeight: '700', color: colors.text },
-  receiptMeta: { fontSize: 13, color: colors.muted, marginTop: 2 },
+  idleText: {
+    fontFamily: fonts.sans,
+    fontSize: 14,
+    color: colors.inkSoft,
+    textAlign: 'center',
+    lineHeight: 21,
+    marginVertical: 16,
+  },
+  uploadPreview: { width: 116, height: 156, borderRadius: 12, marginBottom: 20 },
+  receiptCard: { padding: 14, marginBottom: 12 },
+  receiptRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  thumb: { width: 52, height: 52, borderRadius: 8, backgroundColor: colors.rule },
+  merchant: { fontFamily: fonts.serifMedium, fontSize: 17, color: colors.ink },
+  receiptMeta: { fontFamily: fonts.sans, fontSize: 13, color: colors.inkSoft, marginTop: 2 },
   fuelBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fef2f2',
+    gap: 6,
+    backgroundColor: '#fbeee0',
     borderRadius: 8,
     padding: 8,
     marginTop: 12,
   },
-  fuelBannerText: { fontSize: 12, color: colors.danger, marginLeft: 6, flex: 1 },
-  assignAllRow: {
+  fuelBannerText: { fontSize: 12, color: colors.accent, fontFamily: fonts.sans, flex: 1 },
+  assignRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginVertical: 8,
+    marginBottom: 8,
+    paddingHorizontal: 2,
   },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: colors.muted },
-  assignAll: { fontSize: 13, fontWeight: '700', color: colors.primary },
-  itemCard: { padding: 12 },
+  kLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+    color: colors.inkSoft,
+  },
+  assignAll: { fontFamily: fonts.sansSemibold, fontSize: 13, color: colors.accent },
+  itemCard: { padding: 12, marginBottom: 10 },
   itemName: {
+    fontFamily: fonts.sansMedium,
     fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
+    color: colors.ink,
     paddingVertical: 4,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.rule,
   },
-  itemBottom: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+  itemBottom: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 10 },
   amountWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.bg,
     borderRadius: 8,
     paddingHorizontal: 10,
-    marginRight: 10,
   },
-  rs: { fontSize: 13, color: colors.muted, fontWeight: '700' },
-  amountInput: { fontSize: 15, fontWeight: '700', color: colors.text, paddingVertical: 8, minWidth: 70, marginLeft: 4 },
+  rs: { fontFamily: fonts.mono, fontSize: 13, color: colors.inkSoft, fontWeight: '700' },
+  amountInput: {
+    fontFamily: fonts.monoMedium,
+    fontSize: 15,
+    color: colors.ink,
+    paddingVertical: 8,
+    minWidth: 64,
+    marginLeft: 4,
+  },
   listChip: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 7,
     backgroundColor: colors.bg,
     borderRadius: 8,
     paddingHorizontal: 10,
-    paddingVertical: 9,
+    paddingVertical: 8,
   },
-  dot: { width: 12, height: 12, borderRadius: 6, marginRight: 8 },
-  listChipText: { flex: 1, fontSize: 14, color: colors.text, fontWeight: '600' },
-  totalLine: { fontSize: 15, fontWeight: '800', color: colors.text, textAlign: 'right', marginVertical: 12 },
-  error: { color: colors.danger, fontSize: 13, marginBottom: 12, textAlign: 'center' },
-  doneTitle: { fontSize: 20, fontWeight: '800', color: colors.text, marginTop: 14 },
-  doneSub: { fontSize: 14, color: colors.muted, marginTop: 4, textAlign: 'center' },
+  listChipText: { flex: 1, fontSize: 13.5, color: colors.ink, fontFamily: fonts.sansMedium },
+  error: { color: colors.alarm, fontSize: 13, marginBottom: 12, fontFamily: fonts.sans, textAlign: 'center' },
+  doneTitle: {
+    fontFamily: fonts.serifMediumItalic,
+    fontSize: 24,
+    color: colors.ink,
+    marginTop: 14,
+  },
+  doneSub: { fontFamily: fonts.sans, fontSize: 14, color: colors.inkSoft, marginTop: 4 },
+  doneBtn: { marginTop: 22, paddingHorizontal: 34 },
 });

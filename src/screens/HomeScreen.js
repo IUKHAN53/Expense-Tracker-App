@@ -1,14 +1,24 @@
 import React, { useCallback, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import api, { errorMessage } from '../api/client';
-import { Card, EmptyState, Loading, MonthSwitcher } from '../components/ui';
-import { colors, currentMonthKey, listIcon, money, monthLabel, shiftMonth } from '../theme';
+import { AppHeader } from '../components/Header';
+import {
+  Card,
+  EmptyState,
+  Loading,
+  MonthSwitcher,
+  PersonBar,
+  SectionHeader,
+} from '../components/ui';
+import { CategoryBreakdown, ExpenseItem } from '../components/bits';
+import { colors, currentMonthKey, fonts, money, monthLabelShort, shiftMonth } from '../theme';
 
 export default function HomeScreen({ navigation }) {
   const [month, setMonth] = useState(currentMonthKey());
-  const [lists, setLists] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -16,10 +26,14 @@ export default function HomeScreen({ navigation }) {
   const load = useCallback(async (targetMonth) => {
     try {
       setError('');
-      const res = await api.get('/lists', { params: { month: targetMonth } });
-      setLists(res.data.data || []);
-    } catch (e) {
-      setError(errorMessage(e));
+      const [s, e] = await Promise.all([
+        api.get('/summary', { params: { month: targetMonth } }),
+        api.get('/entries', { params: { month: targetMonth, limit: 8 } }),
+      ]);
+      setSummary(s.data);
+      setEntries(e.data.data || []);
+    } catch (err) {
+      setError(errorMessage(err));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -32,147 +46,155 @@ export default function HomeScreen({ navigation }) {
     }, [month, load]),
   );
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    load(month);
-  };
-
-  const grandTotal = lists.reduce((sum, l) => sum + (l.month_total || 0), 0);
-
   if (loading) {
-    return <Loading label="Loading lists…" />;
+    return (
+      <View style={styles.screen}>
+        <AppHeader />
+        <Loading label="Loading your ledger…" />
+      </View>
+    );
   }
 
-  const header = (
-    <View>
-      <MonthSwitcher
-        label={monthLabel(month)}
-        onPrev={() => setMonth((m) => shiftMonth(m, -1))}
-        onNext={() => setMonth((m) => shiftMonth(m, 1))}
-      />
-      <Card style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Total spent this month</Text>
-        <Text style={styles.totalValue}>{money(grandTotal)}</Text>
-      </Card>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Text style={styles.sectionTitle}>Lists</Text>
-    </View>
-  );
+  const grandTotal = summary ? summary.grand_total : 0;
+  const lists = summary ? [...summary.lists].sort((a, b) => b.total - a.total) : [];
+  const byCategory = summary
+    ? summary.by_category.map((c) => ({ name: c.category_name, amount: c.total }))
+    : [];
+  const entryCount = summary
+    ? summary.by_category.reduce((n, c) => n + (c.count || 0), 0)
+    : 0;
 
   return (
     <View style={styles.screen}>
-      <FlatList
-        data={lists}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={header}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        ListEmptyComponent={
-          <EmptyState
-            icon="albums-outline"
-            title="No lists yet"
-            subtitle="Add lists in the Laravel admin panel."
+      <AppHeader
+        right={
+          <MonthSwitcher
+            label={monthLabelShort(month)}
+            onPrev={() => setMonth((m) => shiftMonth(m, -1))}
+            onNext={() => setMonth((m) => shiftMonth(m, 1))}
           />
         }
-        renderItem={({ item }) => (
-          <ListCard
-            list={item}
-            onPress={() => navigation.navigate('ListDetail', { list: item, month })}
-          />
-        )}
       />
 
-      <Pressable
-        style={styles.fab}
-        onPress={() => navigation.navigate('AddEntry', {})}
+      <ScrollView
+        contentContainerStyle={styles.body}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              load(month);
+            }}
+            tintColor={colors.accent}
+          />
+        }
       >
-        <Ionicons name="add" size={28} color={colors.white} />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {/* Hero total */}
+        <View style={styles.hero}>
+          <Text style={styles.heroLabel}>TOTAL · {monthLabelShort(month).toUpperCase()}</Text>
+          <Text style={styles.heroValue}>{money(grandTotal)}</Text>
+          <Text style={styles.heroSub}>
+            {entryCount} {entryCount === 1 ? 'expense' : 'expenses'} this month
+          </Text>
+        </View>
+
+        {/* By person */}
+        <Card style={styles.panel}>
+          <SectionHeader title="By person" />
+          {lists.length === 0 ? (
+            <EmptyState icon="people-outline" title="No lists yet" />
+          ) : (
+            lists.map((l) => (
+              <PersonBar
+                key={l.id}
+                name={l.name}
+                type={l.type}
+                amount={l.total}
+                total={grandTotal}
+                onPress={() => navigation.navigate('ListDetail', { list: l, month })}
+              />
+            ))
+          )}
+        </Card>
+
+        {/* By category */}
+        <Card style={styles.panel}>
+          <SectionHeader title="By category" />
+          <CategoryBreakdown data={byCategory} emptyHint="No spending recorded yet." />
+        </Card>
+
+        {/* Recent */}
+        <Card style={styles.panel}>
+          <SectionHeader
+            title="Recent"
+            right={<Text style={styles.count}>{entries.length}</Text>}
+          />
+          {entries.length === 0 ? (
+            <EmptyState
+              icon="receipt-outline"
+              title="Nothing here yet"
+              subtitle="Tap + to add your first expense."
+            />
+          ) : (
+            entries.map((e, i) => (
+              <View key={e.id} style={i === entries.length - 1 ? styles.lastRow : null}>
+                <ExpenseItem
+                  entry={e}
+                  onPress={() =>
+                    navigation.navigate('AddEntry', { entry: e, listId: e.spending_list_id })
+                  }
+                />
+              </View>
+            ))
+          )}
+        </Card>
+      </ScrollView>
+
+      <Pressable style={styles.fab} onPress={() => navigation.navigate('AddEntry', {})}>
+        <Ionicons name="add" size={30} color={colors.white} />
       </Pressable>
     </View>
   );
 }
 
-function ListCard({ list, onPress }) {
-  const budget = list.monthly_budget;
-  const spent = list.month_total || 0;
-  const ratio = budget ? Math.min(spent / budget, 1) : 0;
-  const overBudget = budget != null && spent > budget;
-
-  return (
-    <Pressable onPress={onPress}>
-      <Card style={styles.listCard}>
-        <View style={styles.listRow}>
-          <View style={[styles.iconCircle, { backgroundColor: `${list.color}22` }]}>
-            <Ionicons name={listIcon(list.type)} size={20} color={list.color} />
-          </View>
-          <View style={styles.listInfo}>
-            <Text style={styles.listName}>{list.name}</Text>
-            <Text style={styles.listMeta}>
-              {list.month_entries_count} {list.month_entries_count === 1 ? 'item' : 'items'}
-            </Text>
-          </View>
-          <View style={styles.listAmountBox}>
-            <Text style={styles.listAmount}>{money(spent)}</Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.muted} />
-          </View>
-        </View>
-
-        {budget != null ? (
-          <View style={styles.budgetWrap}>
-            <View style={styles.budgetTrack}>
-              <View
-                style={[
-                  styles.budgetFill,
-                  { width: `${ratio * 100}%`, backgroundColor: overBudget ? colors.danger : list.color },
-                ]}
-              />
-            </View>
-            <Text style={[styles.budgetText, overBudget && { color: colors.danger }]}>
-              {overBudget
-                ? `${money(spent - budget)} over budget`
-                : `${money(list.budget_remaining)} of ${money(budget)} left`}
-            </Text>
-          </View>
-        ) : null}
-      </Card>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  list: { padding: 16, paddingBottom: 100 },
-  totalCard: { marginTop: 14, alignItems: 'center', backgroundColor: colors.primary, borderColor: colors.primary },
-  totalLabel: { color: '#e0e7ff', fontSize: 13, fontWeight: '600' },
-  totalValue: { color: colors.white, fontSize: 30, fontWeight: '800', marginTop: 4 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: colors.muted, marginBottom: 8, marginTop: 4 },
-  error: { color: colors.danger, fontSize: 13, marginBottom: 8 },
-  listCard: { padding: 14 },
-  listRow: { flexDirection: 'row', alignItems: 'center' },
-  iconCircle: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
-  listInfo: { flex: 1, marginLeft: 12 },
-  listName: { fontSize: 16, fontWeight: '700', color: colors.text },
-  listMeta: { fontSize: 12, color: colors.muted, marginTop: 2 },
-  listAmountBox: { flexDirection: 'row', alignItems: 'center' },
-  listAmount: { fontSize: 16, fontWeight: '800', color: colors.text, marginRight: 4 },
-  budgetWrap: { marginTop: 12 },
-  budgetTrack: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },
-  budgetFill: { height: 6, borderRadius: 3 },
-  budgetText: { fontSize: 11, color: colors.muted, marginTop: 5 },
+  body: { padding: 16, paddingBottom: 110 },
+  error: { color: colors.alarm, fontSize: 13, marginBottom: 10, fontFamily: fonts.sans },
+  hero: { alignItems: 'center', paddingVertical: 18 },
+  heroLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 10.5,
+    letterSpacing: 2,
+    color: colors.inkSoft,
+  },
+  heroValue: {
+    fontFamily: fonts.serifMedium,
+    fontSize: 50,
+    color: colors.ink,
+    marginTop: 6,
+    letterSpacing: -1,
+  },
+  heroSub: { fontFamily: fonts.serifItalic, fontSize: 14, color: colors.inkSoft, marginTop: 4 },
+  panel: { marginTop: 4, marginBottom: 12, padding: 18 },
+  count: { fontFamily: fonts.mono, fontSize: 12, color: colors.inkSoft },
+  lastRow: { },
   fab: {
     position: 'absolute',
     right: 20,
     bottom: 24,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: colors.primary,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
+    shadowColor: colors.accent,
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
 });

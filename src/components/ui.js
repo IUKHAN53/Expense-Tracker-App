@@ -10,12 +10,16 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../theme';
+import { categoryStyle, colors, fonts, moneyShort, personColor } from '../theme';
+
+/* ----------------------------------------------------------------------- */
+/*  Primitives                                                             */
+/* ----------------------------------------------------------------------- */
 
 export function Loading({ label }) {
   return (
     <View style={styles.center}>
-      <ActivityIndicator size="large" color={colors.primary} />
+      <ActivityIndicator size="large" color={colors.accent} />
       {label ? <Text style={styles.loadingLabel}>{label}</Text> : null}
     </View>
   );
@@ -25,74 +29,98 @@ export function Card({ children, style }) {
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
-export function Button({ title, onPress, variant = 'primary', loading, disabled, icon, style }) {
-  const isOutline = variant === 'outline';
-  const isDanger = variant === 'danger';
-  const bg = isOutline ? 'transparent' : isDanger ? colors.danger : colors.primary;
-  const fg = isOutline ? colors.primary : colors.white;
-  const blocked = loading || disabled;
+/** Mono uppercase mini-label, used above fields and on stat cards. */
+export function KLabel({ children, style }) {
+  return <Text style={[styles.kLabel, style]}>{children}</Text>;
+}
 
+/** Italic Newsreader section heading. */
+export function SectionHeader({ title, right }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {right || null}
+    </View>
+  );
+}
+
+export function Button({ title, onPress, variant = 'primary', loading, disabled, icon, style }) {
+  const v = BUTTON_VARIANTS[variant] || BUTTON_VARIANTS.primary;
+  const blocked = loading || disabled;
   return (
     <Pressable
       onPress={onPress}
       disabled={blocked}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: bg, opacity: blocked ? 0.5 : pressed ? 0.85 : 1 },
-        isOutline && styles.buttonOutline,
+        { backgroundColor: v.bg, borderColor: v.border, borderWidth: v.border ? 1.5 : 0 },
+        blocked && { opacity: 0.45 },
+        pressed && !blocked && { opacity: 0.85 },
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={fg} />
+        <ActivityIndicator color={v.fg} />
       ) : (
         <View style={styles.buttonRow}>
-          {icon ? <Ionicons name={icon} size={18} color={fg} style={{ marginRight: 8 }} /> : null}
-          <Text style={[styles.buttonText, { color: fg }]}>{title}</Text>
+          {icon ? <Ionicons name={icon} size={17} color={v.fg} style={{ marginRight: 7 }} /> : null}
+          <Text style={[styles.buttonText, { color: v.fg }]}>{title}</Text>
         </View>
       )}
     </Pressable>
   );
 }
 
-export function TextField({ label, hint, style, ...props }) {
+const BUTTON_VARIANTS = {
+  primary: { bg: colors.ink, fg: colors.bg, border: null },
+  accent: { bg: colors.accent, fg: '#fff', border: null },
+  outline: { bg: 'transparent', fg: colors.ink, border: colors.rule },
+  danger: { bg: colors.alarm, fg: '#fff', border: null },
+};
+
+export function TextField({ label, hint, style, multiline, ...props }) {
   return (
-    <View style={[{ marginBottom: 14 }, style]}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <TextInput placeholderTextColor={colors.muted} style={styles.input} {...props} />
+    <View style={[{ marginBottom: 16 }, style]}>
+      {label ? <KLabel style={{ marginBottom: 7 }}>{label}</KLabel> : null}
+      <TextInput
+        placeholderTextColor={colors.inkSoft}
+        multiline={multiline}
+        style={[styles.input, multiline && { minHeight: 64, textAlignVertical: 'top' }]}
+        {...props}
+      />
       {hint ? <Text style={styles.hint}>{hint}</Text> : null}
     </View>
   );
 }
 
 /** A read-only field that opens a picker when tapped. */
-export function SelectField({ label, valueLabel, placeholder, onPress, color, style }) {
+export function SelectField({ label, valueLabel, placeholder, onPress, swatch, style }) {
   return (
-    <View style={[{ marginBottom: 14 }, style]}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+    <View style={[{ marginBottom: 16 }, style]}>
+      {label ? <KLabel style={{ marginBottom: 7 }}>{label}</KLabel> : null}
       <Pressable style={[styles.input, styles.selectRow]} onPress={onPress}>
-        {color ? <View style={[styles.dot, { backgroundColor: color }]} /> : null}
-        <Text style={[styles.selectText, !valueLabel && { color: colors.muted }]} numberOfLines={1}>
+        {swatch ? <View style={[styles.swatchDot, { backgroundColor: swatch }]} /> : null}
+        <Text style={[styles.selectText, !valueLabel && { color: colors.inkSoft }]} numberOfLines={1}>
           {valueLabel || placeholder}
         </Text>
-        <Ionicons name="chevron-down" size={18} color={colors.muted} />
+        <Ionicons name="chevron-down" size={17} color={colors.inkSoft} />
       </Pressable>
     </View>
   );
 }
 
-export function Badge({ label, color = colors.muted }) {
+export function Badge({ label, color = colors.inkSoft, fill }) {
   return (
-    <View style={[styles.badge, { backgroundColor: `${color}22` }]}>
+    <View style={[styles.badge, { backgroundColor: fill || `${color}22` }]}>
       <Text style={[styles.badgeText, { color }]}>{label}</Text>
     </View>
   );
 }
 
-export function EmptyState({ icon = 'file-tray-outline', title, subtitle }) {
+export function EmptyState({ icon = 'leaf-outline', title, subtitle }) {
   return (
     <View style={styles.empty}>
-      <Ionicons name={icon} size={52} color={colors.border} />
+      <Ionicons name={icon} size={40} color={colors.rule} />
       <Text style={styles.emptyTitle}>{title}</Text>
       {subtitle ? <Text style={styles.emptySubtitle}>{subtitle}</Text> : null}
     </View>
@@ -103,17 +131,17 @@ export function MonthSwitcher({ label, onPrev, onNext }) {
   return (
     <View style={styles.monthRow}>
       <Pressable onPress={onPrev} hitSlop={12} style={styles.monthBtn}>
-        <Ionicons name="chevron-back" size={20} color={colors.primary} />
+        <Ionicons name="chevron-back" size={16} color={colors.inkSoft} />
       </Pressable>
       <Text style={styles.monthLabel}>{label}</Text>
       <Pressable onPress={onNext} hitSlop={12} style={styles.monthBtn}>
-        <Ionicons name="chevron-forward" size={20} color={colors.primary} />
+        <Ionicons name="chevron-forward" size={16} color={colors.inkSoft} />
       </Pressable>
     </View>
   );
 }
 
-/** A bottom-sheet style single-choice picker. */
+/** A bottom-sheet single-choice picker. */
 export function PickerModal({ visible, title, options, onSelect, onClose }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -130,31 +158,147 @@ export function PickerModal({ visible, title, options, onSelect, onClose }) {
                   onClose();
                 }}
               >
-                {opt.color ? <View style={[styles.dot, { backgroundColor: opt.color }]} /> : null}
-                {opt.icon ? (
-                  <Ionicons name={opt.icon} size={18} color={colors.muted} style={{ marginRight: 10 }} />
-                ) : null}
+                {opt.swatch ? <View style={[styles.swatchDot, { backgroundColor: opt.swatch }]} /> : null}
                 <Text style={styles.modalOptionText}>{opt.label}</Text>
               </Pressable>
             ))}
           </ScrollView>
-          <Button title="Cancel" variant="outline" onPress={onClose} style={{ marginTop: 8 }} />
+          <Button title="Cancel" variant="outline" onPress={onClose} style={{ marginTop: 10 }} />
         </Pressable>
       </Pressable>
     </Modal>
   );
 }
 
+/* ----------------------------------------------------------------------- */
+/*  Kharcha display bits                                                   */
+/* ----------------------------------------------------------------------- */
+
+/** Round person/list avatar with an italic initial. Household = dashed. */
+export function Avatar({ name, type, size = 32 }) {
+  const isHousehold = type === 'household';
+  const c = personColor(name);
+  const initial = (name || '?').trim().charAt(0).toUpperCase() || '?';
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: isHousehold ? 'transparent' : c.bg,
+        borderWidth: isHousehold ? 1.5 : 0,
+        borderColor: colors.inkSoft,
+        borderStyle: 'dashed',
+      }}
+    >
+      <Text
+        style={{
+          fontFamily: fonts.serifMediumItalic,
+          fontSize: size * 0.48,
+          color: isHousehold ? colors.inkSoft : c.ink,
+        }}
+      >
+        {initial}
+      </Text>
+    </View>
+  );
+}
+
+/** Rounded-square category chip with a two-letter code. */
+export function CatChip({ name, size = 30 }) {
+  const c = categoryStyle(name);
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 8,
+        backgroundColor: c.bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Text style={{ fontFamily: fonts.monoMedium, fontSize: size * 0.34, color: c.ink }}>
+        {c.short}
+      </Text>
+    </View>
+  );
+}
+
+/** A stat card — mono label, big serif value, optional sub-line. */
+export function StatCard({ label, value, sub, accent, style }) {
+  return (
+    <View style={[styles.card, styles.statCard, style]}>
+      <KLabel>{label}</KLabel>
+      <Text style={[styles.statValue, accent && { color: accent }]} numberOfLines={1}>
+        {value}
+      </Text>
+      {sub != null ? <View style={{ marginTop: 6 }}>{typeof sub === 'string'
+        ? <Text style={styles.statSub}>{sub}</Text> : sub}</View> : null}
+    </View>
+  );
+}
+
+/** A person/list row with a proportional spend bar. */
+export function PersonBar({ name, type, amount, total, percent, onPress, active }) {
+  const pct = percent != null ? percent : (total > 0 ? (amount / total) * 100 : 0);
+  const c = personColor(name);
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.personRow, active && { backgroundColor: colors.soft }]}
+    >
+      <Avatar name={name} type={type} size={34} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.personName} numberOfLines={1}>{name}</Text>
+        <View style={styles.barTrack}>
+          <View
+            style={[styles.barFill, { width: `${Math.min(pct, 100)}%`, backgroundColor: c.bg }]}
+          />
+        </View>
+      </View>
+      <View style={{ alignItems: 'flex-end' }}>
+        <Text style={styles.personAmount}>{moneyShort(amount)}</Text>
+        <Text style={styles.personPct}>{pct.toFixed(0)}%</Text>
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg },
-  loadingLabel: { marginTop: 12, color: colors.muted, fontSize: 14 },
+  loadingLabel: {
+    marginTop: 14,
+    color: colors.inkSoft,
+    fontSize: 14,
+    fontFamily: fonts.serifItalic,
+  },
   card: {
     backgroundColor: colors.card,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 16,
+    padding: 18,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.rule,
+  },
+  kLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+    color: colors.inkSoft,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontFamily: fonts.serifMediumItalic,
+    fontSize: 19,
+    color: colors.ink,
   },
   button: {
     borderRadius: 12,
@@ -163,64 +307,112 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonOutline: { borderWidth: 1.5, borderColor: colors.primary },
   buttonRow: { flexDirection: 'row', alignItems: 'center' },
-  buttonText: { fontSize: 15, fontWeight: '700' },
-  label: { fontSize: 13, fontWeight: '600', color: colors.text, marginBottom: 6 },
+  buttonText: { fontFamily: fonts.sansSemibold, fontSize: 14.5 },
   input: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.bg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.rule,
     borderRadius: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: 13,
     paddingVertical: 12,
     fontSize: 15,
-    color: colors.text,
+    fontFamily: fonts.sans,
+    color: colors.ink,
   },
-  hint: { fontSize: 12, color: colors.muted, marginTop: 4 },
+  hint: { fontSize: 12, color: colors.inkSoft, marginTop: 5, fontFamily: fonts.sans },
   selectRow: { flexDirection: 'row', alignItems: 'center' },
-  selectText: { flex: 1, fontSize: 15, color: colors.text },
-  dot: { width: 14, height: 14, borderRadius: 7, marginRight: 10 },
+  selectText: { flex: 1, fontSize: 15, color: colors.ink, fontFamily: fonts.sans },
+  swatchDot: { width: 14, height: 14, borderRadius: 7, marginRight: 10 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, alignSelf: 'flex-start' },
-  badgeText: { fontSize: 11, fontWeight: '700' },
-  empty: { alignItems: 'center', justifyContent: 'center', padding: 40 },
-  emptyTitle: { marginTop: 12, fontSize: 16, fontWeight: '700', color: colors.text },
-  emptySubtitle: { marginTop: 4, fontSize: 13, color: colors.muted, textAlign: 'center' },
-  monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  badgeText: { fontFamily: fonts.monoMedium, fontSize: 10, letterSpacing: 0.4 },
+  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 44, paddingHorizontal: 24 },
+  emptyTitle: {
+    marginTop: 12,
+    fontSize: 17,
+    fontFamily: fonts.serifMediumItalic,
+    color: colors.ink,
+  },
+  emptySubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    color: colors.inkSoft,
+    textAlign: 'center',
+    fontFamily: fonts.sans,
+  },
+  monthRow: { flexDirection: 'row', alignItems: 'center' },
   monthBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.white,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.rule,
+    backgroundColor: colors.card,
   },
   monthLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text,
-    marginHorizontal: 14,
-    minWidth: 130,
+    fontFamily: fonts.serif,
+    fontSize: 17,
+    color: colors.ink,
+    marginHorizontal: 10,
+    minWidth: 122,
     textAlign: 'center',
   },
-  modalBackdrop: { flex: 1, backgroundColor: '#00000066', justifyContent: 'flex-end' },
+  modalBackdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   modalSheet: {
     backgroundColor: colors.bg,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    padding: 16,
-    paddingBottom: 28,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    padding: 18,
+    paddingBottom: 30,
+    borderWidth: 1,
+    borderColor: colors.rule,
   },
-  modalTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 10 },
+  modalTitle: {
+    fontFamily: fonts.serifMediumItalic,
+    fontSize: 21,
+    color: colors.ink,
+    marginBottom: 10,
+  },
   modalOption: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.rule,
   },
-  modalOptionText: { fontSize: 15, color: colors.text },
+  modalOptionText: { fontSize: 15, color: colors.ink, fontFamily: fonts.sans },
+  statCard: { padding: 17 },
+  statValue: {
+    fontFamily: fonts.serifMedium,
+    fontSize: 34,
+    color: colors.ink,
+    marginTop: 5,
+  },
+  statSub: { fontSize: 12.5, color: colors.inkSoft, fontFamily: fonts.sans },
+  personRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+  },
+  personName: { fontSize: 14.5, fontFamily: fonts.sansMedium, color: colors.ink },
+  barTrack: {
+    marginTop: 7,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.rule,
+    overflow: 'hidden',
+  },
+  barFill: { height: 6, borderRadius: 3 },
+  personAmount: {
+    fontFamily: fonts.monoMedium,
+    fontSize: 13.5,
+    color: colors.ink,
+  },
+  personPct: { fontFamily: fonts.mono, fontSize: 10.5, color: colors.inkSoft, marginTop: 1 },
 });

@@ -1,22 +1,25 @@
-import React, { useCallback, useLayoutEffect, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import api, { errorMessage } from '../api/client';
-import { Badge, Card, EmptyState, Loading, MonthSwitcher } from '../components/ui';
-import { colors, currentMonthKey, formatDate, money, monthLabel, shiftMonth } from '../theme';
-
-const SOURCE_ICON = {
-  manual: 'create-outline',
-  scan: 'scan-outline',
-  sms: 'chatbubble-ellipses-outline',
-};
+import {
+  Avatar,
+  Card,
+  EmptyState,
+  Loading,
+  MonthSwitcher,
+  SectionHeader,
+} from '../components/ui';
+import { CategoryBreakdown, ExpenseItem } from '../components/bits';
+import { colors, currentMonthKey, fonts, money, monthLabel, shiftMonth } from '../theme';
 
 export default function ListDetailScreen({ route, navigation }) {
   const { list } = route.params;
   const [month, setMonth] = useState(route.params.month || currentMonthKey());
   const [entries, setEntries] = useState([]);
   const [total, setTotal] = useState(0);
+  const [grand, setGrand] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -29,13 +32,15 @@ export default function ListDetailScreen({ route, navigation }) {
     async (targetMonth) => {
       try {
         setError('');
-        const res = await api.get('/entries', {
-          params: { spending_list_id: list.id, month: targetMonth },
-        });
-        setEntries(res.data.data || []);
-        setTotal(res.data.total || 0);
-      } catch (e) {
-        setError(errorMessage(e));
+        const [e, s] = await Promise.all([
+          api.get('/entries', { params: { spending_list_id: list.id, month: targetMonth } }),
+          api.get('/summary', { params: { month: targetMonth } }),
+        ]);
+        setEntries(e.data.data || []);
+        setTotal(e.data.total || 0);
+        setGrand(s.data.grand_total || 0);
+      } catch (err) {
+        setError(errorMessage(err));
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -50,35 +55,25 @@ export default function ListDetailScreen({ route, navigation }) {
     }, [month, load]),
   );
 
+  const byCategory = useMemo(() => {
+    const map = {};
+    entries.forEach((e) => {
+      const name = e.category ? e.category.name : 'Uncategorised';
+      map[name] = (map[name] || 0) + Number(e.amount || 0);
+    });
+    return Object.entries(map).map(([name, amount]) => ({ name, amount }));
+  }, [entries]);
+
   if (loading) {
     return <Loading label="Loading entries…" />;
   }
 
-  const header = (
-    <View>
-      <MonthSwitcher
-        label={monthLabel(month)}
-        onPrev={() => setMonth((m) => shiftMonth(m, -1))}
-        onNext={() => setMonth((m) => shiftMonth(m, 1))}
-      />
-      <Card style={[styles.totalCard, { backgroundColor: list.color, borderColor: list.color }]}>
-        <Text style={styles.totalLabel}>Spent in {monthLabel(month)}</Text>
-        <Text style={styles.totalValue}>{money(total)}</Text>
-        <Text style={styles.totalLabel}>
-          {entries.length} {entries.length === 1 ? 'item' : 'items'}
-        </Text>
-      </Card>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-    </View>
-  );
+  const share = grand > 0 ? Math.round((total / grand) * 100) : 0;
 
   return (
     <View style={styles.screen}>
-      <FlatList
-        data={entries}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={header}
+      <ScrollView
+        contentContainerStyle={styles.body}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -86,55 +81,65 @@ export default function ListDetailScreen({ route, navigation }) {
               setRefreshing(true);
               load(month);
             }}
+            tintColor={colors.accent}
           />
         }
-        ListEmptyComponent={
-          <EmptyState
-            icon="receipt-outline"
-            title="No items this month"
-            subtitle="Tap + to add a purchase."
+      >
+        <View style={styles.monthRow}>
+          <MonthSwitcher
+            label={monthLabel(month)}
+            onPrev={() => setMonth((m) => shiftMonth(m, -1))}
+            onNext={() => setMonth((m) => shiftMonth(m, 1))}
           />
-        }
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => navigation.navigate('AddEntry', { entry: item, listId: list.id })}
-          >
-            <Card style={styles.entryCard}>
-              <View style={styles.entryMain}>
-                <Text style={styles.entryName}>{item.item_name}</Text>
-                <View style={styles.entryMetaRow}>
-                  <Ionicons
-                    name={SOURCE_ICON[item.source] || 'ellipse-outline'}
-                    size={12}
-                    color={colors.muted}
-                  />
-                  <Text style={styles.entryMeta}>{'  '}{formatDate(item.purchased_at, true)}</Text>
-                </View>
-                {item.category ? (
-                  <View style={styles.entryBadge}>
-                    <Badge label={item.category.name} color={item.category.color || colors.muted} />
-                  </View>
-                ) : null}
-              </View>
-              <View style={styles.entryRight}>
-                <Text style={styles.entryAmount}>{money(item.amount)}</Text>
-                {Number(item.quantity) !== 1 ? (
-                  <Text style={styles.entryQty}>
-                    ×{item.quantity}
-                    {item.unit ? ` ${item.unit}` : ''}
-                  </Text>
-                ) : null}
-              </View>
-            </Card>
-          </Pressable>
-        )}
-      />
+        </View>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        {/* Hero */}
+        <Card style={styles.hero}>
+          <View style={styles.heroTop}>
+            <Avatar name={list.name} type={list.type} size={52} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.heroName} numberOfLines={1}>{list.name}</Text>
+              <Text style={styles.heroMeta}>
+                {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
+                {grand > 0 ? ` · ${share}% of household` : ''}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.heroValue}>{money(total)}</Text>
+          <View style={styles.heroBreakdown}>
+            <CategoryBreakdown data={byCategory} emptyHint="No spending this month." />
+          </View>
+        </Card>
+
+        {/* Entries */}
+        <Card style={styles.panel}>
+          <SectionHeader title="Entries" />
+          {entries.length === 0 ? (
+            <EmptyState
+              icon="receipt-outline"
+              title="No entries this month"
+              subtitle="Tap + to add a purchase."
+            />
+          ) : (
+            entries.map((e) => (
+              <ExpenseItem
+                key={e.id}
+                entry={e}
+                showList={false}
+                onPress={() => navigation.navigate('AddEntry', { entry: e, listId: list.id })}
+              />
+            ))
+          )}
+        </Card>
+      </ScrollView>
 
       <Pressable
         style={styles.fab}
         onPress={() => navigation.navigate('AddEntry', { listId: list.id })}
       >
-        <Ionicons name="add" size={28} color={colors.white} />
+        <Ionicons name="add" size={30} color={colors.white} />
       </Pressable>
     </View>
   );
@@ -142,34 +147,40 @@ export default function ListDetailScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  list: { padding: 16, paddingBottom: 100 },
-  totalCard: { marginTop: 14, alignItems: 'center' },
-  totalLabel: { color: '#ffffffcc', fontSize: 12, fontWeight: '600' },
-  totalValue: { color: colors.white, fontSize: 30, fontWeight: '800', marginVertical: 4 },
-  error: { color: colors.danger, fontSize: 13, marginBottom: 8 },
-  entryCard: { flexDirection: 'row', alignItems: 'center', padding: 14 },
-  entryMain: { flex: 1 },
-  entryName: { fontSize: 15, fontWeight: '700', color: colors.text },
-  entryMetaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  entryMeta: { fontSize: 12, color: colors.muted },
-  entryBadge: { marginTop: 6 },
-  entryRight: { alignItems: 'flex-end', marginLeft: 10 },
-  entryAmount: { fontSize: 16, fontWeight: '800', color: colors.text },
-  entryQty: { fontSize: 11, color: colors.muted, marginTop: 2 },
+  body: { padding: 16, paddingBottom: 110 },
+  monthRow: { alignItems: 'center', marginBottom: 14 },
+  error: { color: colors.alarm, fontSize: 13, marginBottom: 10, fontFamily: fonts.sans },
+  hero: { padding: 20, marginBottom: 12 },
+  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  heroName: {
+    fontFamily: fonts.serifMedium,
+    fontSize: 26,
+    color: colors.ink,
+  },
+  heroMeta: { fontFamily: fonts.sans, fontSize: 12, color: colors.inkSoft, marginTop: 2 },
+  heroValue: {
+    fontFamily: fonts.serifMedium,
+    fontSize: 44,
+    color: colors.ink,
+    marginTop: 14,
+    letterSpacing: -1,
+  },
+  heroBreakdown: { marginTop: 16 },
+  panel: { padding: 18 },
   fab: {
     position: 'absolute',
     right: 20,
     bottom: 24,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: colors.primary,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.accent,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
+    shadowColor: colors.accent,
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
 });

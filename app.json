@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "Expense Tracker",
+    "name": "Kharcha",
     "slug": "expense-tracker",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#fdf8ee",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.expensetracker.app"
@@ -13,7 +14,7 @@
     "android": {
       "package": "com.expensetracker.app",
       "adaptiveIcon": {
-        "backgroundColor": "#6366f1",
+        "backgroundColor": "#2b1f12",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -28,10 +29,19 @@
     },
     "plugins": [
       [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#fdf8ee"
+        }
+      ],
+      [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Expense Tracker to access your photos so you can scan receipts.",
-          "cameraPermission": "Allow Expense Tracker to use the camera so you can scan receipts."
+          "photosPermission": "Allow Kharcha to access your photos so you can scan receipts.",
+          "cameraPermission": "Allow Kharcha to use the camera so you can scan receipts."
         }
       ],
       "expo-font",
