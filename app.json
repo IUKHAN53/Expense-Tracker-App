@@ -21,7 +21,8 @@
       },
       "permissions": [
         "android.permission.READ_SMS",
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -46,6 +47,11 @@
       ],
       "expo-font",
       "@react-native-community/datetimepicker"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9d5e755d-9431-4d7e-8bb5-81ea2bab3649"
+      }
+    }
   }
 }

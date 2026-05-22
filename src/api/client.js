@@ -1,15 +1,13 @@
 import axios from 'axios';
 
-// A single axios instance whose base URL + auth token are set at runtime
-// once the user has logged in (or when a saved session is restored).
+/** The app always talks to the production API. */
+export const API_BASE_URL = 'https://expense.iukhan.tech';
+
 const instance = axios.create({
+  baseURL: `${API_BASE_URL}/api`,
   timeout: 120000,
   headers: { Accept: 'application/json' },
 });
-
-export function setBaseUrl(url) {
-  instance.defaults.baseURL = url ? `${url.replace(/\/+$/, '')}/api` : undefined;
-}
 
 export function setToken(token) {
   if (token) {
@@ -30,7 +28,7 @@ export function errorMessage(error, fallback = 'Something went wrong.') {
   if (res?.data?.message) return res.data.message;
 
   if (error?.message === 'Network Error') {
-    return 'Cannot reach the server. Check the server URL and that your phone is on the same Wi-Fi network.';
+    return 'Cannot reach the server. Check your connection and try again.';
   }
   if (error?.code === 'ECONNABORTED') {
     return 'The request timed out. The server may be slow or unreachable.';

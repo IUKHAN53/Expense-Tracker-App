@@ -13,25 +13,22 @@ import { Button, Card, TextField } from '../components/ui';
 import { Mark } from '../components/Logo';
 import { colors, fonts } from '../theme';
 
-const DEFAULT_SERVER = 'https://expense.iukhan.tech';
-
 export default function LoginScreen() {
-  const { login, baseUrl } = useAuth();
-  const [server, setServer] = useState(baseUrl || DEFAULT_SERVER);
+  const { login } = useAuth();
   const [email, setEmail] = useState('admin@expense.app');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   const onSubmit = async () => {
-    if (!server.trim() || !email.trim() || !password) {
-      setError('Please fill in the server, email and password.');
+    if (!email.trim() || !password) {
+      setError('Please enter your email and password.');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      await login(server, email, password);
+      await login(email, password);
     } catch (e) {
       setError(errorMessage(e, 'Login failed. Check your details and try again.'));
     } finally {
@@ -52,15 +49,6 @@ export default function LoginScreen() {
         </View>
 
         <Card style={styles.form}>
-          <TextField
-            label="Server"
-            value={server}
-            onChangeText={setServer}
-            placeholder="https://expense.iukhan.tech"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-          />
           <TextField
             label="Email"
             value={email}

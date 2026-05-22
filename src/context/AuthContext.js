@@ -1,5 +1,5 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import api, { setBaseUrl, setToken } from '../api/client';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import api, { setToken } from '../api/client';
 import { clearSession, loadSession, saveSession } from '../api/storage';
 
 const AuthContext = createContext(null);
@@ -8,17 +8,12 @@ export function AuthProvider({ children }) {
   const [ready, setReady] = useState(false);
   const [token, setTok] = useState(null);
   const [user, setUser] = useState(null);
-  const [baseUrl, setUrl] = useState('');
 
   // Restore a saved session on startup.
   useEffect(() => {
     (async () => {
       try {
         const session = await loadSession();
-        if (session.baseUrl) {
-          setUrl(session.baseUrl);
-          setBaseUrl(session.baseUrl);
-        }
         if (session.token) {
           setToken(session.token);
           setTok(session.token);
@@ -30,18 +25,15 @@ export function AuthProvider({ children }) {
     })();
   }, []);
 
-  const login = async (url, email, password) => {
-    const cleanUrl = url.trim();
-    setBaseUrl(cleanUrl);
+  const login = async (email, password) => {
     const res = await api.post('/login', {
       email: email.trim(),
       password,
-      device_name: 'Expo app',
+      device_name: 'Kharcha app',
     });
     const { token: newToken, user: newUser } = res.data;
     setToken(newToken);
-    await saveSession({ token: newToken, baseUrl: cleanUrl, user: newUser });
-    setUrl(cleanUrl);
+    await saveSession({ token: newToken, user: newUser });
     setUser(newUser);
     setTok(newToken);
   };
@@ -59,7 +51,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ ready, token, user, baseUrl, login, logout }}>
+    <AuthContext.Provider value={{ ready, token, user, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

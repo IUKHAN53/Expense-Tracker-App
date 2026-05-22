@@ -4,10 +4,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { AppHeader } from '../components/Header';
 import { Avatar, Button, Card } from '../components/ui';
+import { API_BASE_URL } from '../api/client';
 import { colors, fonts } from '../theme';
 
 export default function SettingsScreen() {
-  const { user, baseUrl, logout } = useAuth();
+  const { user, logout } = useAuth();
 
   return (
     <View style={styles.screen}>
@@ -19,7 +20,7 @@ export default function SettingsScreen() {
           <Text style={styles.email}>{user?.email}</Text>
         </Card>
 
-        <InfoRow icon="server-outline" label="Server" value={baseUrl || '—'} />
+        <InfoRow icon="server-outline" label="Server" value={API_BASE_URL} />
         <InfoRow icon="cube-outline" label="App version" value="1.0.0" />
 
         <Card style={styles.note}>
