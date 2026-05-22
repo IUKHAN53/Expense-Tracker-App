@@ -8,15 +8,13 @@ import {
   Card,
   EmptyState,
   Loading,
-  MonthSwitcher,
   SectionHeader,
 } from '../components/ui';
 import { CategoryBreakdown, ExpenseItem } from '../components/bits';
-import { colors, currentMonthKey, fonts, money, monthLabel, shiftMonth } from '../theme';
+import { colors, currentMonthKey, fonts, money, monthLabel } from '../theme';
 
 export default function ListDetailScreen({ route, navigation }) {
   const { list } = route.params;
-  const [month, setMonth] = useState(route.params.month || currentMonthKey());
   const [entries, setEntries] = useState([]);
   const [total, setTotal] = useState(0);
   const [grand, setGrand] = useState(0);
@@ -28,31 +26,30 @@ export default function ListDetailScreen({ route, navigation }) {
     navigation.setOptions({ title: list.name });
   }, [navigation, list.name]);
 
-  const load = useCallback(
-    async (targetMonth) => {
-      try {
-        setError('');
-        const [e, s] = await Promise.all([
-          api.get('/entries', { params: { spending_list_id: list.id, month: targetMonth } }),
-          api.get('/summary', { params: { month: targetMonth } }),
-        ]);
-        setEntries(e.data.data || []);
-        setTotal(e.data.total || 0);
-        setGrand(s.data.grand_total || 0);
-      } catch (err) {
-        setError(errorMessage(err));
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [list.id],
-  );
+  // The app always shows the current month; pick up "now" on each focus.
+  const load = useCallback(async () => {
+    try {
+      setError('');
+      const month = currentMonthKey();
+      const [e, s] = await Promise.all([
+        api.get('/entries', { params: { spending_list_id: list.id, month } }),
+        api.get('/summary', { params: { month } }),
+      ]);
+      setEntries(e.data.data || []);
+      setTotal(e.data.total || 0);
+      setGrand(s.data.grand_total || 0);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [list.id]);
 
   useFocusEffect(
     useCallback(() => {
-      load(month);
-    }, [month, load]),
+      load();
+    }, [load]),
   );
 
   const byCategory = useMemo(() => {
@@ -68,6 +65,7 @@ export default function ListDetailScreen({ route, navigation }) {
     return <Loading label="Loading entries…" />;
   }
 
+  const monthKey = currentMonthKey();
   const share = grand > 0 ? Math.round((total / grand) * 100) : 0;
 
   return (
@@ -79,20 +77,12 @@ export default function ListDetailScreen({ route, navigation }) {
             refreshing={refreshing}
             onRefresh={() => {
               setRefreshing(true);
-              load(month);
+              load();
             }}
             tintColor={colors.accent}
           />
         }
       >
-        <View style={styles.monthRow}>
-          <MonthSwitcher
-            label={monthLabel(month)}
-            onPrev={() => setMonth((m) => shiftMonth(m, -1))}
-            onNext={() => setMonth((m) => shiftMonth(m, 1))}
-          />
-        </View>
-
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         {/* Hero */}
@@ -102,7 +92,7 @@ export default function ListDetailScreen({ route, navigation }) {
             <View style={{ flex: 1 }}>
               <Text style={styles.heroName} numberOfLines={1}>{list.name}</Text>
               <Text style={styles.heroMeta}>
-                {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
+                {monthLabel(monthKey)} · {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
                 {grand > 0 ? ` · ${share}% of household` : ''}
               </Text>
             </View>
@@ -148,7 +138,6 @@ export default function ListDetailScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   body: { padding: 16, paddingBottom: 110 },
-  monthRow: { alignItems: 'center', marginBottom: 14 },
   error: { color: colors.alarm, fontSize: 13, marginBottom: 10, fontFamily: fonts.sans },
   hero: { padding: 20, marginBottom: 12 },
   heroTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },

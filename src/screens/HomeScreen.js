@@ -8,27 +8,27 @@ import {
   Card,
   EmptyState,
   Loading,
-  MonthSwitcher,
   PersonBar,
   SectionHeader,
 } from '../components/ui';
 import { CategoryBreakdown, ExpenseItem } from '../components/bits';
-import { colors, currentMonthKey, fonts, money, monthLabelShort, shiftMonth } from '../theme';
+import { colors, currentMonthKey, fonts, money, monthLabelShort } from '../theme';
 
 export default function HomeScreen({ navigation }) {
-  const [month, setMonth] = useState(currentMonthKey());
   const [summary, setSummary] = useState(null);
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
-  const load = useCallback(async (targetMonth) => {
+  // The mobile app always shows the current month; pick up the latest "now" on each focus.
+  const load = useCallback(async () => {
     try {
       setError('');
+      const month = currentMonthKey();
       const [s, e] = await Promise.all([
-        api.get('/summary', { params: { month: targetMonth } }),
-        api.get('/entries', { params: { month: targetMonth, limit: 8 } }),
+        api.get('/summary', { params: { month } }),
+        api.get('/entries', { params: { month, limit: 8 } }),
       ]);
       setSummary(s.data);
       setEntries(e.data.data || []);
@@ -42,8 +42,8 @@ export default function HomeScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      load(month);
-    }, [month, load]),
+      load();
+    }, [load]),
   );
 
   if (loading) {
@@ -55,6 +55,7 @@ export default function HomeScreen({ navigation }) {
     );
   }
 
+  const monthKey = currentMonthKey();
   const grandTotal = summary ? summary.grand_total : 0;
   const lists = summary ? [...summary.lists].sort((a, b) => b.total - a.total) : [];
   const byCategory = summary
@@ -66,15 +67,7 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={styles.screen}>
-      <AppHeader
-        right={
-          <MonthSwitcher
-            label={monthLabelShort(month)}
-            onPrev={() => setMonth((m) => shiftMonth(m, -1))}
-            onNext={() => setMonth((m) => shiftMonth(m, 1))}
-          />
-        }
-      />
+      <AppHeader />
 
       <ScrollView
         contentContainerStyle={styles.body}
@@ -83,7 +76,7 @@ export default function HomeScreen({ navigation }) {
             refreshing={refreshing}
             onRefresh={() => {
               setRefreshing(true);
-              load(month);
+              load();
             }}
             tintColor={colors.accent}
           />
@@ -91,9 +84,9 @@ export default function HomeScreen({ navigation }) {
       >
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {/* Hero total */}
+        {/* Hero total — always this month */}
         <View style={styles.hero}>
-          <Text style={styles.heroLabel}>TOTAL · {monthLabelShort(month).toUpperCase()}</Text>
+          <Text style={styles.heroLabel}>TOTAL · {monthLabelShort(monthKey).toUpperCase()}</Text>
           <Text style={styles.heroValue}>{money(grandTotal)}</Text>
           <Text style={styles.heroSub}>
             {entryCount} {entryCount === 1 ? 'expense' : 'expenses'} this month
@@ -113,7 +106,7 @@ export default function HomeScreen({ navigation }) {
                 type={l.type}
                 amount={l.total}
                 total={grandTotal}
-                onPress={() => navigation.navigate('ListDetail', { list: l, month })}
+                onPress={() => navigation.navigate('ListDetail', { list: l })}
               />
             ))
           )}
@@ -138,15 +131,14 @@ export default function HomeScreen({ navigation }) {
               subtitle="Tap + to add your first expense."
             />
           ) : (
-            entries.map((e, i) => (
-              <View key={e.id} style={i === entries.length - 1 ? styles.lastRow : null}>
-                <ExpenseItem
-                  entry={e}
-                  onPress={() =>
-                    navigation.navigate('AddEntry', { entry: e, listId: e.spending_list_id })
-                  }
-                />
-              </View>
+            entries.map((e) => (
+              <ExpenseItem
+                key={e.id}
+                entry={e}
+                onPress={() =>
+                  navigation.navigate('AddEntry', { entry: e, listId: e.spending_list_id })
+                }
+              />
             ))
           )}
         </Card>
@@ -180,7 +172,6 @@ const styles = StyleSheet.create({
   heroSub: { fontFamily: fonts.serifItalic, fontSize: 14, color: colors.inkSoft, marginTop: 4 },
   panel: { marginTop: 4, marginBottom: 12, padding: 18 },
   count: { fontFamily: fonts.mono, fontSize: 12, color: colors.inkSoft },
-  lastRow: { },
   fab: {
     position: 'absolute',
     right: 20,
