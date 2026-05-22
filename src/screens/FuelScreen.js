@@ -1,12 +1,25 @@
 import React, { useCallback, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
 import api, { errorMessage } from '../api/client';
 import { AppHeader } from '../components/Header';
-import { Badge, Card, EmptyState, Loading } from '../components/ui';
+import { Card, EmptyState, Loading } from '../components/ui';
 import { colors, fonts, formatDate, money } from '../theme';
+
+/** "2026.05.10" — matches the CarExpenses layout. */
+function ymdDot(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}`;
+}
+
+function nfmt(n) {
+  return (n ?? 0).toLocaleString('en-US');
+}
 
 export default function FuelScreen({ navigation }) {
   const [data, setData] = useState(null);
@@ -63,7 +76,6 @@ export default function FuelScreen({ navigation }) {
       >
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        {/* Big km/L hero */}
         <View style={styles.hero}>
           <Text style={styles.heroLabel}>AVERAGE · {(stats.avg_window || '').toUpperCase()}</Text>
           <View style={styles.heroValueRow}>
@@ -79,7 +91,6 @@ export default function FuelScreen({ navigation }) {
           ) : null}
         </View>
 
-        {/* Stat grid */}
         <View style={styles.statGrid}>
           <StatTile
             label="This month spent"
@@ -88,12 +99,12 @@ export default function FuelScreen({ navigation }) {
           />
           <StatTile
             label="This month km"
-            value={(stats.month_kms || 0).toLocaleString()}
+            value={nfmt(stats.month_kms || 0)}
             sub="distance"
           />
           <StatTile
             label="Last fill"
-            value={stats.last_odometer ? stats.last_odometer.toLocaleString() : '—'}
+            value={stats.last_odometer ? nfmt(stats.last_odometer) : '—'}
             sub={stats.last_fill_date ? formatDate(stats.last_fill_date) : ''}
           />
           <StatTile
@@ -103,12 +114,10 @@ export default function FuelScreen({ navigation }) {
           />
         </View>
 
-        {/* km/L trend chart */}
         {records.length >= 3 ? (
           <KmplChart records={[...records].reverse().slice(-14)} />
         ) : null}
 
-        {/* Records list */}
         <View style={styles.recordsHead}>
           <Text style={styles.recordsTitle}>Refills</Text>
           <Text style={styles.recordsCount}>{records.length}</Text>
@@ -147,56 +156,59 @@ function StatTile({ label, value, sub }) {
   );
 }
 
+/**
+ * Two-column refill card, modelled on the CarExpenses layout:
+ *   left  — date / E92 + Rs/L / Rs/km / km/L
+ *   right — odometer (+km) / total Rs / litres / Full|Partial
+ */
 function FuelCard({ record, onPress }) {
+  const dim = (v) => (v == null ? '—' : v);
   return (
     <Pressable onPress={onPress}>
       <Card style={styles.recordCard}>
-        <View style={styles.recordTopRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.recordDate}>{formatDate(record.date)}</Text>
-            <View style={styles.recordBadges}>
-              <Badge label={record.fuel_type || 'E92'} color={colors.accent} />
-              {record.is_full_tank ? (
-                <Badge label="Full" color={colors.accent2} />
-              ) : (
-                <Badge label="Partial" color={colors.inkSoft} />
-              )}
+        <View style={styles.recordRow}>
+          <View style={styles.fuelIcon}>
+            <MaterialCommunityIcons name="gas-station" size={22} color={colors.white} />
+          </View>
+
+          {/* Left column */}
+          <View style={styles.recordLeft}>
+            <Text style={styles.recordDate}>{ymdDot(record.date)}</Text>
+            <View style={styles.inlineRow}>
+              <Text style={styles.fuelTypeText}>{record.fuel_type || 'E92'}</Text>
+              <Text style={styles.recordMeta}>
+                {' '}
+                {record.rate != null ? `${record.rate.toFixed(2)} Rs/L` : ''}
+              </Text>
             </View>
+            <Text style={styles.recordMeta}>
+              {record.rs_per_km != null ? `${record.rs_per_km.toFixed(2)} Rs/km` : '—'}
+            </Text>
+            <Text style={styles.recordKmpl}>
+              {record.km_per_liter != null ? `${record.km_per_liter.toFixed(2)} km/L` : '—'}
+            </Text>
           </View>
-          <Text style={styles.recordAmount}>{money(record.amount)}</Text>
-        </View>
-        <View style={styles.recordGrid}>
-          <Metric label="Liters" value={`${record.liters.toFixed(2)} L`} />
-          <Metric label="Rate" value={record.rate != null ? `Rs ${record.rate.toFixed(2)}` : '—'} />
-          <Metric
-            label="Odometer"
-            value={record.odometer != null ? `${record.odometer.toLocaleString()} km` : '—'}
-          />
-        </View>
-        {record.km_per_liter != null || record.km_since_last != null ? (
-          <View style={styles.econRow}>
-            {record.km_since_last != null ? (
-              <Text style={styles.econKm}>+{record.km_since_last.toLocaleString()} km</Text>
-            ) : null}
-            {record.km_per_liter != null ? (
-              <Text style={styles.econKmpl}>{record.km_per_liter.toFixed(2)} km/L</Text>
-            ) : null}
+
+          {/* Right column */}
+          <View style={styles.recordRight}>
+            <Text style={styles.recordOdo}>
+              {dim(record.odometer != null ? nfmt(record.odometer) : null)} km
+              {record.km_since_last != null ? (
+                <Text style={styles.recordOdoDelta}> (+{nfmt(record.km_since_last)})</Text>
+              ) : null}
+            </Text>
+            <Text style={styles.recordAmount}>{money(record.amount)}</Text>
+            <Text style={styles.recordLiters}>{record.liters.toFixed(2)} L</Text>
+            <Text style={[styles.recordTopUp, !record.is_full_tank && styles.recordPartial]}>
+              {record.is_full_tank ? 'FULL' : 'PARTIAL'}
+            </Text>
           </View>
-        ) : null}
-        {record.notes && record.notes !== 'Imported from CarExpenses CSV.' ? (
+        </View>
+        {record.notes && !record.notes.startsWith('Imported from CarExpenses') ? (
           <Text style={styles.recordNote} numberOfLines={2}>{record.notes}</Text>
         ) : null}
       </Card>
     </Pressable>
-  );
-}
-
-function Metric({ label, value }) {
-  return (
-    <View style={{ flex: 1 }}>
-      <Text style={styles.metricLabel}>{label.toUpperCase()}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
-    </View>
   );
 }
 
@@ -214,7 +226,6 @@ function KmplChart({ records }) {
   const stepX = (W - padX * 2) / (values.length - 1);
   const yFor = (v) => H - padY - ((v - min) / Math.max(max - min, 0.0001)) * (H - padY * 2);
   const points = values.map((v, i) => `${padX + i * stepX},${yFor(v)}`).join(' ');
-
   const avg = values.reduce((a, b) => a + b, 0) / values.length;
 
   return (
@@ -244,13 +255,7 @@ function KmplChart({ records }) {
           strokeLinejoin="round"
         />
         {values.map((v, i) => (
-          <Circle
-            key={i}
-            cx={padX + i * stepX}
-            cy={yFor(v)}
-            r="2.8"
-            fill={colors.accent}
-          />
+          <Circle key={i} cx={padX + i * stepX} cy={yFor(v)} r="2.8" fill={colors.accent} />
         ))}
       </Svg>
     </Card>
@@ -262,12 +267,7 @@ const styles = StyleSheet.create({
   body: { padding: 16, paddingBottom: 110 },
   error: { color: colors.alarm, fontSize: 13, marginBottom: 10, fontFamily: fonts.sans },
   hero: { alignItems: 'center', paddingVertical: 14 },
-  heroLabel: {
-    fontFamily: fonts.mono,
-    fontSize: 10,
-    letterSpacing: 1.8,
-    color: colors.inkSoft,
-  },
+  heroLabel: { fontFamily: fonts.mono, fontSize: 10, letterSpacing: 1.8, color: colors.inkSoft },
   heroValueRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 4, gap: 6 },
   heroValue: {
     fontFamily: fonts.serifMedium,
@@ -279,11 +279,7 @@ const styles = StyleSheet.create({
   heroUnit: { fontFamily: fonts.serifItalic, fontSize: 18, color: colors.inkSoft, marginBottom: 8 },
   heroSub: { fontFamily: fonts.serifItalic, fontSize: 13, color: colors.inkSoft, marginTop: 4 },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -5, marginTop: 6 },
-  statTile: {
-    width: '50%',
-    paddingHorizontal: 5,
-    paddingVertical: 5,
-  },
+  statTile: { width: '50%', paddingHorizontal: 5, paddingVertical: 5 },
   statLabel: { fontFamily: fonts.mono, fontSize: 9.5, letterSpacing: 1.3, color: colors.inkSoft },
   statValue: {
     fontFamily: fonts.serifMedium,
@@ -293,10 +289,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   statSub: { fontFamily: fonts.sans, fontSize: 11.5, color: colors.inkSoft, marginTop: 2 },
+
   chartCard: { padding: 14, marginTop: 14, marginBottom: 8 },
   chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   chartTitle: { fontFamily: fonts.serifMediumItalic, fontSize: 15, color: colors.ink },
   chartAvg: { fontFamily: fonts.mono, fontSize: 11, color: colors.inkSoft },
+
   recordsHead: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -306,32 +304,41 @@ const styles = StyleSheet.create({
   },
   recordsTitle: { fontFamily: fonts.serifMediumItalic, fontSize: 19, color: colors.ink },
   recordsCount: { fontFamily: fonts.mono, fontSize: 12, color: colors.inkSoft },
+
   recordCard: { padding: 14, marginBottom: 10 },
-  recordTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  recordDate: { fontFamily: fonts.sansMedium, fontSize: 14.5, color: colors.ink },
-  recordBadges: { flexDirection: 'row', gap: 6, marginTop: 5 },
-  recordAmount: { fontFamily: fonts.monoMedium, fontSize: 16, color: colors.ink },
-  recordGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.rule,
-    paddingTop: 10,
+  recordRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  fuelIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
   },
-  metricLabel: { fontFamily: fonts.mono, fontSize: 9.5, letterSpacing: 1.2, color: colors.inkSoft },
-  metricValue: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.ink, marginTop: 3 },
-  econRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  recordLeft: { flex: 1 },
+  recordRight: { alignItems: 'flex-end' },
+  recordDate: { fontFamily: fonts.sansMedium, fontSize: 17, color: colors.ink, letterSpacing: 0 },
+  inlineRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 3 },
+  fuelTypeText: { fontFamily: fonts.monoMedium, fontSize: 12, color: colors.accent, letterSpacing: 0.5 },
+  recordMeta: { fontFamily: fonts.mono, fontSize: 12.5, color: colors.inkSoft, marginTop: 2 },
+  recordKmpl: { fontFamily: fonts.monoMedium, fontSize: 13, color: colors.ink, marginTop: 3 },
+  recordOdo: { fontFamily: fonts.sansMedium, fontSize: 15, color: colors.ink },
+  recordOdoDelta: { fontFamily: fonts.mono, fontSize: 12, color: colors.inkSoft },
+  recordAmount: { fontFamily: fonts.monoMedium, fontSize: 14.5, color: colors.ink, marginTop: 3 },
+  recordLiters: { fontFamily: fonts.mono, fontSize: 13, color: colors.inkSoft, marginTop: 2 },
+  recordTopUp: { fontFamily: fonts.mono, fontSize: 10.5, color: colors.accent2, letterSpacing: 1, marginTop: 3 },
+  recordPartial: { color: colors.inkSoft },
+  recordNote: {
+    fontFamily: fonts.serifItalic,
+    fontSize: 12.5,
+    color: colors.inkSoft,
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: colors.rule,
   },
-  econKm: { fontFamily: fonts.mono, fontSize: 12, color: colors.inkSoft },
-  econKmpl: { fontFamily: fonts.monoMedium, fontSize: 13, color: colors.accent },
-  recordNote: { fontFamily: fonts.serifItalic, fontSize: 12.5, color: colors.inkSoft, marginTop: 8 },
+
   fab: {
     position: 'absolute',
     right: 20,
