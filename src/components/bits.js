@@ -34,6 +34,12 @@ export function ExpenseItem({ entry, onPress, showList = true }) {
               <Text style={styles.metaText} numberOfLines={1}>{catName}</Text>
             </>
           ) : null}
+          {entry.split_group_id ? (
+            <>
+              <Text style={styles.dot}>·</Text>
+              <Text style={styles.splitTag}>SPLIT</Text>
+            </>
+          ) : null}
         </View>
       </View>
       <Text style={styles.amount}>{money(entry.amount)}</Text>
@@ -93,6 +99,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.monoMedium,
     fontSize: 14,
     color: colors.ink,
+  },
+  splitTag: {
+    fontFamily: fonts.monoMedium,
+    fontSize: 9.5,
+    color: colors.accent,
+    letterSpacing: 1,
   },
   stack: {
     flexDirection: 'row',

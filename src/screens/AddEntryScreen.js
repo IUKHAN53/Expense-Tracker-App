@@ -11,7 +11,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import api, { errorMessage } from '../api/client';
 import { Avatar, Button, CatChip, KLabel, Loading } from '../components/ui';
-import { colors, fonts, formatDate } from '../theme';
+import { colors, fonts, formatDate, money } from '../theme';
 
 function toServerDate(d) {
   const p = (n) => String(n).padStart(2, '0');
@@ -28,7 +28,12 @@ export default function AddEntryScreen({ route, navigation }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const [listId, setListId] = useState(editing?.spending_list_id || presetListId || null);
+  // Multiple list ids = split between them. Edit mode is single-list only.
+  const [listIds, setListIds] = useState(() => {
+    if (editing?.spending_list_id) return [editing.spending_list_id];
+    if (presetListId) return [presetListId];
+    return [];
+  });
   const [categoryId, setCategoryId] = useState(editing?.category_id || null);
   const [itemName, setItemName] = useState(editing?.item_name || '');
   const [amount, setAmount] = useState(editing ? String(editing.amount) : '');
@@ -70,11 +75,27 @@ export default function AddEntryScreen({ route, navigation }) {
     })();
   }, []);
 
-  const selectedList = useMemo(() => lists.find((l) => l.id === listId), [lists, listId]);
-  const isVehicle = selectedList?.type === 'vehicle';
+  const togglePerson = (id) => {
+    // In edit mode, swap the list. In create mode, toggle for split.
+    if (editing) {
+      setListIds([id]);
+      return;
+    }
+    setListIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const isVehicle = useMemo(
+    () => lists.some((l) => listIds.includes(l.id) && l.type === 'vehicle'),
+    [lists, listIds],
+  );
+  const splitShare = useMemo(() => {
+    const a = Number(amount);
+    if (!a || listIds.length < 2) return 0;
+    return Math.round((a / listIds.length) * 100) / 100;
+  }, [amount, listIds]);
 
   const save = async () => {
-    if (!listId) return setError('Choose whose expense this is.');
+    if (listIds.length === 0) return setError('Choose whose expense this is.');
     if (!itemName.trim()) return setError('Add a short note for the expense.');
     if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
       return setError('Enter a valid amount.');
@@ -82,8 +103,7 @@ export default function AddEntryScreen({ route, navigation }) {
 
     setSaving(true);
     setError('');
-    const payload = {
-      spending_list_id: listId,
+    const base = {
       category_id: categoryId,
       item_name: itemName.trim(),
       amount: Number(amount),
@@ -98,9 +118,13 @@ export default function AddEntryScreen({ route, navigation }) {
 
     try {
       if (editing) {
-        await api.put(`/entries/${editing.id}`, payload);
+        // Edit always stays single-list.
+        await api.put(`/entries/${editing.id}`, { ...base, spending_list_id: listIds[0] });
+      } else if (listIds.length > 1) {
+        // Split — server divides evenly across listIds.
+        await api.post('/entries', { ...base, spending_list_ids: listIds });
       } else {
-        await api.post('/entries', payload);
+        await api.post('/entries', { ...base, spending_list_id: listIds[0] });
       }
       navigation.goBack();
     } catch (e) {
@@ -152,15 +176,22 @@ export default function AddEntryScreen({ route, navigation }) {
       </View>
       <View style={styles.amountRule} />
 
-      {/* Whose expense */}
-      <Text style={styles.qLabel}>Whose expense?</Text>
+      {/* Whose expense — multi-select for splits */}
+      <View style={styles.qLabelRow}>
+        <Text style={styles.qLabel}>{editing ? 'Whose expense?' : 'Whose expense? (tap multiple to split)'}</Text>
+        {!editing && listIds.length > 1 ? (
+          <View style={styles.splitBadge}>
+            <Text style={styles.splitBadgeText}>{listIds.length}-WAY SPLIT</Text>
+          </View>
+        ) : null}
+      </View>
       <View style={styles.grid}>
         {lists.map((l) => {
-          const active = l.id === listId;
+          const active = listIds.includes(l.id);
           return (
             <Pressable
               key={l.id}
-              onPress={() => setListId(l.id)}
+              onPress={() => togglePerson(l.id)}
               style={[styles.personCell, active && styles.cellActive]}
             >
               <Avatar name={l.name} type={l.type} size={32} />
@@ -169,6 +200,16 @@ export default function AddEntryScreen({ route, navigation }) {
           );
         })}
       </View>
+      {!editing && listIds.length > 1 && splitShare > 0 ? (
+        <Text style={styles.splitHint}>
+          Each pays {money(splitShare)} · total {money(Number(amount) || 0)}
+        </Text>
+      ) : null}
+      {editing && editing.split_group_id ? (
+        <Text style={styles.splitHint}>
+          This entry is part of an earlier split — editing it only changes this share.
+        </Text>
+      ) : null}
 
       {/* Category */}
       <Text style={styles.qLabel}>Category</Text>
@@ -284,7 +325,7 @@ export default function AddEntryScreen({ route, navigation }) {
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <Button
-        title={editing ? 'Save changes' : 'Save expense'}
+        title={editing ? 'Save changes' : listIds.length > 1 ? `Split between ${listIds.length}` : 'Save expense'}
         onPress={save}
         loading={saving}
         icon="checkmark"
@@ -337,6 +378,23 @@ const styles = StyleSheet.create({
     color: colors.inkSoft,
     marginBottom: 8,
     marginTop: 4,
+  },
+  qLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  splitBadge: {
+    backgroundColor: colors.accent,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 6,
+  },
+  splitBadgeText: { fontFamily: fonts.monoMedium, fontSize: 9.5, color: colors.white, letterSpacing: 1 },
+  splitHint: {
+    fontFamily: fonts.serifItalic,
+    fontSize: 13,
+    color: colors.accent,
+    marginTop: -6,
+    marginBottom: 14,
+    textAlign: 'center',
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -3, marginBottom: 14 },
   personCell: {

@@ -141,6 +141,47 @@ export function MonthSwitcher({ label, onPrev, onNext }) {
   );
 }
 
+/**
+ * Bottom-sheet multi-select. `values` is the current array of selected
+ * `option.value` ids; `onChange(next)` is called as the user toggles.
+ * `helper` shows below the list (e.g. "Splits Rs 250 each").
+ */
+export function MultiPickerModal({ visible, title, options, values = [], onChange, onClose, helper }) {
+  const toggle = (val) => {
+    if (values.includes(val)) onChange(values.filter((v) => v !== val));
+    else onChange([...values, val]);
+  };
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable style={styles.modalSheet} onPress={() => {}}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <ScrollView style={{ maxHeight: 380 }}>
+            {options.map((opt) => {
+              const selected = values.includes(opt.value);
+              return (
+                <Pressable
+                  key={String(opt.value)}
+                  style={styles.modalOption}
+                  onPress={() => toggle(opt.value)}
+                >
+                  <View style={[styles.checkBox, selected && styles.checkBoxOn]}>
+                    {selected ? <Ionicons name="checkmark" size={14} color={colors.white} /> : null}
+                  </View>
+                  {opt.swatch ? <View style={[styles.swatchDot, { backgroundColor: opt.swatch }]} /> : null}
+                  <Text style={styles.modalOptionText}>{opt.label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          {helper ? <Text style={styles.modalHelper}>{helper}</Text> : null}
+          <Button title={values.length > 1 ? `Split with ${values.length}` : 'Done'} onPress={onClose} style={{ marginTop: 8 }} />
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 /** A bottom-sheet single-choice picker. */
 export function PickerModal({ visible, title, options, onSelect, onClose }) {
   return (
@@ -383,7 +424,26 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.rule,
   },
-  modalOptionText: { fontSize: 15, color: colors.ink, fontFamily: fonts.sans },
+  modalOptionText: { fontSize: 15, color: colors.ink, fontFamily: fonts.sans, flex: 1 },
+  modalHelper: {
+    fontFamily: fonts.serifItalic,
+    fontSize: 13,
+    color: colors.inkSoft,
+    paddingVertical: 10,
+    textAlign: 'center',
+  },
+  checkBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.inkSoft,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  checkBoxOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   statCard: { padding: 17 },
   statValue: {
     fontFamily: fonts.serifMedium,
