@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import api, { errorMessage } from '../api/client';
+import api, { API_BASE_URL, errorMessage } from '../api/client';
 import { AppHeader } from '../components/Header';
 import { Avatar, Button, Card, Loading, PickerModal } from '../components/ui';
 import { colors, fonts, money, personColor } from '../theme';
@@ -67,15 +67,36 @@ export default function ScanScreen() {
     setPhase('uploading');
     setPreview(asset.uri);
     setError('');
+
+    // Multipart uploads via axios are unreliable on RN's new architecture
+    // (often throwing "Network Error" before the request is even sent), so
+    // use the native fetch path which handles FormData properly.
     const form = new FormData();
-    form.append('image', {
-      uri: asset.uri,
-      name: asset.fileName || 'receipt.jpg',
-      type: asset.mimeType || 'image/jpeg',
-    });
+    const uri = asset.uri;
+    const name = asset.fileName || (uri && uri.split('/').pop()) || 'receipt.jpg';
+    const type = asset.mimeType || (name.match(/\.png$/i) ? 'image/png' : 'image/jpeg');
+    form.append('image', { uri, name, type });
+
+    const token = api.defaults.headers.common.Authorization;
+
     try {
-      const res = await api.post('/receipts/scan', form);
-      const data = res.data;
+      const response = await fetch(`${API_BASE_URL}/api/receipts/scan`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          ...(token ? { Authorization: token } : {}),
+        },
+        body: form,
+      });
+
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const msg = (data && data.message)
+          || `Server returned ${response.status}${response.statusText ? ` ${response.statusText}` : ''}.`;
+        throw new Error(msg);
+      }
+
       setScan(data);
       setItems(
         (data.items || []).map((it) => ({
@@ -89,7 +110,8 @@ export default function ScanScreen() {
       );
       setPhase('review');
     } catch (e) {
-      setError(errorMessage(e, 'Could not read the receipt.'));
+      // Surface the actual error so it's debuggable from the device.
+      setError(e?.message || errorMessage(e, 'Could not read the receipt.'));
       setPhase('idle');
     }
   };
