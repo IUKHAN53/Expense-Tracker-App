@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
 import api, { API_BASE_URL, errorMessage } from '../api/client';
 import { AppHeader } from '../components/Header';
@@ -68,33 +69,39 @@ export default function ScanScreen() {
     setPreview(asset.uri);
     setError('');
 
-    // Multipart uploads via axios are unreliable on RN's new architecture
-    // (often throwing "Network Error" before the request is even sent), so
-    // use the native fetch path which handles FormData properly.
-    const form = new FormData();
-    const uri = asset.uri;
-    const name = asset.fileName || (uri && uri.split('/').pop()) || 'receipt.jpg';
-    const type = asset.mimeType || (name.match(/\.png$/i) ? 'image/png' : 'image/jpeg');
-    form.append('image', { uri, name, type });
-
+    // RN's JS FormData / multipart layer is brittle on the new architecture
+    // (axios throws "Network Error"; fetch throws "Unsupported FormDataPart").
+    // expo-file-system's uploadAsync builds the multipart body natively and
+    // sidesteps the whole issue.
     const token = api.defaults.headers.common.Authorization;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/receipts/scan`, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          ...(token ? { Authorization: token } : {}),
+      const result = await FileSystem.uploadAsync(
+        `${API_BASE_URL}/api/receipts/scan`,
+        asset.uri,
+        {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'image',
+          mimeType: asset.mimeType || 'image/jpeg',
+          headers: {
+            Accept: 'application/json',
+            ...(token ? { Authorization: token } : {}),
+          },
         },
-        body: form,
-      });
+      );
 
-      const data = await response.json().catch(() => null);
+      let data = null;
+      try { data = JSON.parse(result.body); } catch {}
 
-      if (!response.ok) {
-        const msg = (data && data.message)
-          || `Server returned ${response.status}${response.statusText ? ` ${response.statusText}` : ''}.`;
-        throw new Error(msg);
+      if (result.status < 200 || result.status >= 300) {
+        throw new Error(
+          (data && data.message)
+            || `Server returned ${result.status}.`,
+        );
+      }
+      if (! data) {
+        throw new Error('Server returned an unexpected response.');
       }
 
       setScan(data);
@@ -110,7 +117,6 @@ export default function ScanScreen() {
       );
       setPhase('review');
     } catch (e) {
-      // Surface the actual error so it's debuggable from the device.
       setError(e?.message || errorMessage(e, 'Could not read the receipt.'));
       setPhase('idle');
     }
