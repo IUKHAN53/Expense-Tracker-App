@@ -6,13 +6,14 @@ import { useAuth } from '../context/AuthContext';
 import { colors, fonts } from '../theme';
 import { Loading } from '../components/ui';
 import LoginScreen from '../screens/LoginScreen';
+import SignUpScreen from '../screens/SignUpScreen';
+import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import HomeScreen from '../screens/HomeScreen';
 import ListDetailScreen from '../screens/ListDetailScreen';
 import AddEntryScreen from '../screens/AddEntryScreen';
 import FuelScreen from '../screens/FuelScreen';
 import FuelEntryScreen from '../screens/FuelEntryScreen';
 import ScanScreen from '../screens/ScanScreen';
-import SmsScreen from '../screens/SmsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator();
@@ -22,7 +23,6 @@ const TAB_ICONS = {
   Home: 'pie-chart',
   Fuel: 'car-sport',
   Scan: 'scan',
-  SMS: 'chatbubbles',
   Settings: 'settings',
 };
 
@@ -57,7 +57,6 @@ function Tabs() {
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Fuel" component={FuelScreen} />
       <Tab.Screen name="Scan" component={ScanScreen} />
-      <Tab.Screen name="SMS" component={SmsScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );
@@ -73,7 +72,11 @@ export default function RootNavigator() {
   return (
     <Stack.Navigator screenOptions={stackHeader}>
       {!token ? (
-        <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+        <>
+          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: 'Create account' }} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: 'Reset password' }} />
+        </>
       ) : (
         <>
           <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />

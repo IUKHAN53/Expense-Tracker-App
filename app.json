@@ -3,6 +3,7 @@
     "name": "Kharcha",
     "slug": "expense-tracker",
     "version": "1.0.0",
+    "scheme": "kharcha",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -20,9 +21,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "permissions": [
-        "android.permission.READ_SMS",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.CAMERA"
       ]
     },
     "web": {

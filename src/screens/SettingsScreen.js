@@ -23,14 +23,6 @@ export default function SettingsScreen() {
         <InfoRow icon="server-outline" label="Server" value={API_BASE_URL} />
         <InfoRow icon="cube-outline" label="App version" value="1.0.0" />
 
-        <Card style={styles.note}>
-          <Text style={styles.noteTitle}>About SMS import</Text>
-          <Text style={styles.noteText}>
-            Transaction SMS reading works only in the Android dev build of this app — not in Expo
-            Go and not on iOS.
-          </Text>
-        </Card>
-
         <Button title="Log out" variant="outline" icon="log-out-outline" onPress={logout} />
       </ScrollView>
     </View>

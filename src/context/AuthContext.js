@@ -38,6 +38,26 @@ export function AuthProvider({ children }) {
     setTok(newToken);
   };
 
+  const register = async ({ name, email, password, householdName }) => {
+    const res = await api.post('/register', {
+      name: name.trim(),
+      email: email.trim(),
+      password,
+      household_name: householdName?.trim() || undefined,
+      device_name: 'Kharcha app',
+    });
+    const { token: newToken, user: newUser } = res.data;
+    setToken(newToken);
+    await saveSession({ token: newToken, user: newUser });
+    setUser(newUser);
+    setTok(newToken);
+  };
+
+  const forgotPassword = async (email) => {
+    const res = await api.post('/forgot-password', { email: email.trim() });
+    return res.data?.message || 'If that email is registered, a reset link has been sent.';
+  };
+
   const logout = async () => {
     try {
       await api.post('/logout');
@@ -51,7 +71,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ ready, token, user, login, logout }}>
+    <AuthContext.Provider value={{ ready, token, user, login, register, forgotPassword, logout }}>
       {children}
     </AuthContext.Provider>
   );
