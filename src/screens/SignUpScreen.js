@@ -53,7 +53,7 @@ export default function SignUpScreen({ navigation }) {
         <View style={styles.brand}>
           <Mark size={54} />
           <Text style={styles.wordmark}>Create your ledger</Text>
-          <Text style={styles.tagline}>Free · upgrade later for unlimited scans</Text>
+          <Text style={styles.tagline}>Free · for your household</Text>
         </View>
 
         <Card style={styles.form}>
