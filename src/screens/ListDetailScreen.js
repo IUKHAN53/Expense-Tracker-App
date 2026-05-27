@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -7,6 +7,7 @@ import { Avatar, Card, EmptyState, Loading, SectionHeader,  } from '../component
 import { CategoryBreakdown, ExpenseItem } from '../components/bits';
 import { colors, currentMonthKey, fonts, monthLabel } from '../theme';
 import { useMoney } from '../hooks/useMoney';
+import { on, EVENTS } from '../support/events';
 
 export default function ListDetailScreen({ route, navigation }) {
   const money = useMoney();
@@ -47,6 +48,11 @@ export default function ListDetailScreen({ route, navigation }) {
       load();
     }, [load]),
   );
+
+  useEffect(() => {
+    const off = on(EVENTS.ENTRIES_CHANGED, load);
+    return off;
+  }, [load]);
 
   const byCategory = useMemo(() => {
     const map = {};

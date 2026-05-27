@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -8,6 +8,7 @@ import { AppHeader } from '../components/Header';
 import { Card, EmptyState, Loading } from '../components/ui';
 import { colors, fonts, formatDate } from '../theme';
 import { useMoney } from '../hooks/useMoney';
+import { on, EVENTS } from '../support/events';
 
 /** "2026.05.10" — matches the CarExpenses layout. */
 function ymdDot(iso) {
@@ -47,6 +48,11 @@ export default function FuelScreen({ navigation }) {
       load();
     }, [load]),
   );
+
+  useEffect(() => {
+    const off = on(EVENTS.ENTRIES_CHANGED, load);
+    return off;
+  }, [load]);
 
   if (loading) {
     return (

@@ -6,6 +6,7 @@ import api, { errorMessage } from '../api/client';
 import { Button, KLabel, Loading } from '../components/ui';
 import { colors, fonts, formatDate } from '../theme';
 import { useMoney } from '../hooks/useMoney';
+import { emit, EVENTS } from '../support/events';
 
 const FUEL_TYPES = ['E92', 'E95', 'E98'];
 
@@ -102,6 +103,7 @@ export default function FuelEntryScreen({ route, navigation }) {
       } else {
         await api.post('/entries', payload);
       }
+      emit(EVENTS.ENTRIES_CHANGED);
       navigation.goBack();
     } catch (e) {
       setError(errorMessage(e, 'Could not save the refill.'));
@@ -118,6 +120,7 @@ export default function FuelEntryScreen({ route, navigation }) {
         onPress: async () => {
           try {
             await api.delete(`/entries/${editing.id}`);
+            emit(EVENTS.ENTRIES_CHANGED);
             navigation.goBack();
           } catch (e) {
             setError(errorMessage(e));

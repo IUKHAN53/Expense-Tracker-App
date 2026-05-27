@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,  } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -8,6 +8,7 @@ import { Card, EmptyState, Loading, PersonBar, SectionHeader,  } from '../compon
 import { CategoryBreakdown, ExpenseItem } from '../components/bits';
 import { colors, currentMonthKey, fonts, monthLabelShort } from '../theme';
 import { useMoney } from '../hooks/useMoney';
+import { on, EVENTS } from '../support/events';
 
 export default function HomeScreen({ navigation }) {
   const money = useMoney();
@@ -41,6 +42,11 @@ export default function HomeScreen({ navigation }) {
       load();
     }, [load]),
   );
+
+  useEffect(() => {
+    const off = on(EVENTS.ENTRIES_CHANGED, load);
+    return off;
+  }, [load]);
 
   if (loading) {
     return (

@@ -5,6 +5,7 @@ import api, { errorMessage } from '../api/client';
 import { Avatar, Button, CatChip, KLabel, Loading } from '../components/ui';
 import { colors, fonts, formatDate } from '../theme';
 import { useMoney } from '../hooks/useMoney';
+import { emit, EVENTS } from '../support/events';
 
 function toServerDate(d) {
   const p = (n) => String(n).padStart(2, '0');
@@ -120,6 +121,7 @@ export default function AddEntryScreen({ route, navigation }) {
       } else {
         await api.post('/entries', { ...base, spending_list_id: listIds[0] });
       }
+      emit(EVENTS.ENTRIES_CHANGED);
       navigation.goBack();
     } catch (e) {
       setError(errorMessage(e, 'Could not save the expense.'));
@@ -136,6 +138,7 @@ export default function AddEntryScreen({ route, navigation }) {
         onPress: async () => {
           try {
             await api.delete(`/entries/${editing.id}`);
+            emit(EVENTS.ENTRIES_CHANGED);
             navigation.goBack();
           } catch (e) {
             setError(errorMessage(e));

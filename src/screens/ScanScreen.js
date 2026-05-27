@@ -8,6 +8,7 @@ import { AppHeader } from '../components/Header';
 import { Avatar, Button, Card, Loading, PickerModal } from '../components/ui';
 import { colors, fonts, personColor } from '../theme';
 import { useMoney } from '../hooks/useMoney';
+import { emit, EVENTS } from '../support/events';
 
 const TYPE_LABEL = {
   grocery: 'Grocery',
@@ -149,6 +150,7 @@ export default function ScanScreen() {
       });
       setSavedCount(res.data.count || items.length);
       setPhase('done');
+      emit(EVENTS.ENTRIES_CHANGED);
     } catch (e) {
       setError(errorMessage(e, 'Could not save the items.'));
     } finally {

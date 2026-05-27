@@ -77,6 +77,30 @@ export default function SettingsScreen() {
         </Pressable>
 
         <Pressable
+          onPress={() => navigation.navigate('ManageLists')}
+          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardActive]}
+        >
+          <Ionicons name="list-outline" size={20} color={colors.ink} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Lists</Text>
+            <Text style={styles.linkSub}>People, household, vehicles</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.inkSoft} />
+        </Pressable>
+
+        <Pressable
+          onPress={() => navigation.navigate('ManageCategories')}
+          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardActive]}
+        >
+          <Ionicons name="pricetags-outline" size={20} color={colors.ink} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Categories</Text>
+            <Text style={styles.linkSub}>Tags for grouping expenses</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.inkSoft} />
+        </Pressable>
+
+        <Pressable
           onPress={() => navigation.navigate('CurrencyPicker', { isChange: true })}
           style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardActive]}
         >

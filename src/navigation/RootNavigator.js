@@ -16,6 +16,8 @@ import FuelEntryScreen from '../screens/FuelEntryScreen';
 import ScanScreen from '../screens/ScanScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import HouseholdScreen from '../screens/HouseholdScreen';
+import ManageListsScreen from '../screens/ManageListsScreen';
+import ManageCategoriesScreen from '../screens/ManageCategoriesScreen';
 import VerifyEmailScreen from '../screens/VerifyEmailScreen';
 import CurrencyPickerScreen from '../screens/CurrencyPickerScreen';
 
@@ -91,6 +93,8 @@ export default function RootNavigator() {
           <Stack.Screen name="AddEntry" component={AddEntryScreen} options={{ title: 'Add Expense' }} />
           <Stack.Screen name="FuelEntry" component={FuelEntryScreen} options={{ title: 'New refill' }} />
           <Stack.Screen name="Household" component={HouseholdScreen} options={{ title: 'Household' }} />
+          <Stack.Screen name="ManageLists" component={ManageListsScreen} options={{ title: 'Lists' }} />
+          <Stack.Screen name="ManageCategories" component={ManageCategoriesScreen} options={{ title: 'Categories' }} />
           <Stack.Screen name="CurrencyPicker" component={CurrencyPickerScreen} options={{ title: 'Currency' }} />
         </>
       )}
