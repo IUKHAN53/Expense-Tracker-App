@@ -16,6 +16,7 @@ import FuelEntryScreen from '../screens/FuelEntryScreen';
 import ScanScreen from '../screens/ScanScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import HouseholdScreen from '../screens/HouseholdScreen';
+import VerifyEmailScreen from '../screens/VerifyEmailScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -64,7 +65,7 @@ function Tabs() {
 }
 
 export default function RootNavigator() {
-  const { ready, token } = useAuth();
+  const { ready, token, requiresVerification } = useAuth();
 
   if (!ready) {
     return <Loading label="Loading…" />;
@@ -78,6 +79,8 @@ export default function RootNavigator() {
           <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: 'Create account' }} />
           <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: 'Reset password' }} />
         </>
+      ) : requiresVerification ? (
+        <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} options={{ headerShown: false }} />
       ) : (
         <>
           <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />

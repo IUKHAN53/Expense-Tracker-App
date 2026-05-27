@@ -78,8 +78,37 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
+  const verifyEmail = async (code) => {
+    const res = await api.post('/email/verify', { code });
+    // Optimistic local update so the navigator drops the verification wall.
+    const updated = { ...user, email_verified_at: res.data?.user?.email_verified_at || new Date().toISOString() };
+    setUser(updated);
+    await saveSession({ token, user: updated });
+  };
+
+  const resendVerificationCode = async () => {
+    const res = await api.post('/email/resend');
+    return res.data?.message;
+  };
+
+  const requiresVerification = Boolean(token && user && !user.email_verified_at);
+
   return (
-    <AuthContext.Provider value={{ ready, token, user, login, register, forgotPassword, logout, deleteAccount }}>
+    <AuthContext.Provider
+      value={{
+        ready,
+        token,
+        user,
+        login,
+        register,
+        forgotPassword,
+        logout,
+        deleteAccount,
+        verifyEmail,
+        resendVerificationCode,
+        requiresVerification,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
