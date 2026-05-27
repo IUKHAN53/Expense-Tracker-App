@@ -10,10 +10,10 @@
     "backgroundColor": "#fdf8ee",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.expensetracker.app"
+      "bundleIdentifier": "com.iukhan.kharcha"
     },
     "android": {
-      "package": "com.expensetracker.app",
+      "package": "com.iukhan.kharcha",
       "adaptiveIcon": {
         "backgroundColor": "#2b1f12",
         "foregroundImage": "./assets/android-icon-foreground.png",
