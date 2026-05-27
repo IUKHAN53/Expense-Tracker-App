@@ -51,6 +51,7 @@ export default function CurrencyPickerScreen({ navigation, route }) {
       // swaps the picker stack for the Tabs stack automatically.
     } catch (e) {
       setError(errorMessage(e, 'Could not save your currency. Try again.'));
+    } finally {
       setBusy(false);
     }
   };

@@ -13,6 +13,7 @@ export const CURRENCIES = [
   { code: 'SAR', name: 'Saudi Riyal',       symbol: 'SAR',  locale: 'en-SA' },
   { code: 'CAD', name: 'Canadian Dollar',   symbol: 'CA$',  locale: 'en-CA' },
   { code: 'AUD', name: 'Australian Dollar', symbol: 'A$',   locale: 'en-AU' },
+  { code: 'CNY', name: 'Chinese Yuan',      symbol: '¥',    locale: 'zh-CN' },
 ];
 
 const BY_CODE = Object.fromEntries(CURRENCIES.map((c) => [c.code, c]));
