@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar, CatChip } from './ui';
 import { categoryStyle, colors, fonts } from '../theme';
-import { useMoney } from '../hooks/useMoney';
+import { useMoney, useMoneyShort } from '../hooks/useMoney';
 
 function shortDate(iso) {
   if (!iso) return '';
@@ -13,6 +13,7 @@ function shortDate(iso) {
 
 /** A single expense row — category chip, name + meta line, amount. */
 export function ExpenseItem({ entry, onPress, showList = true }) {
+  const money = useMoney();
   const catName = entry.category ? entry.category.name : null;
   const person = entry.spending_list;
   return (
@@ -50,6 +51,7 @@ export function ExpenseItem({ entry, onPress, showList = true }) {
 
 /** Stacked horizontal bar + two-column legend for a category split. */
 export function CategoryBreakdown({ data, emptyHint }) {
+  const moneyShort = useMoneyShort();
   const ordered = [...(data || [])]
     .filter((d) => d.amount > 0)
     .sort((a, b) => b.amount - a.amount);

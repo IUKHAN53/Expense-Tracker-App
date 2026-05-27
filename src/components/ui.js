@@ -10,7 +10,8 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { categoryStyle, colors, fonts, moneyShort, personColor } from '../theme';
+import { categoryStyle, colors, fonts, personColor } from '../theme';
+import { useMoneyShort } from '../hooks/useMoney';
 
 /* ----------------------------------------------------------------------- */
 /*  Primitives                                                             */
@@ -284,6 +285,7 @@ export function StatCard({ label, value, sub, accent, style }) {
 
 /** A person/list row with a proportional spend bar. */
 export function PersonBar({ name, type, amount, total, percent, onPress, active }) {
+  const moneyShort = useMoneyShort();
   const pct = percent != null ? percent : (total > 0 ? (amount / total) * 100 : 0);
   const c = personColor(name);
   return (
