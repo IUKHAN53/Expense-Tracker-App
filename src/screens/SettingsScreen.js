@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { AppHeader } from '../components/Header';
 import { Avatar, Button, Card, TextField } from '../components/ui';
@@ -17,6 +18,7 @@ import { API_BASE_URL, errorMessage } from '../api/client';
 import { colors, fonts } from '../theme';
 
 export default function SettingsScreen() {
+  const navigation = useNavigation();
   const { user, logout, deleteAccount } = useAuth();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [password, setPassword] = useState('');
@@ -61,6 +63,18 @@ export default function SettingsScreen() {
           <Text style={styles.name}>{user?.name || 'User'}</Text>
           <Text style={styles.email}>{user?.email}</Text>
         </Card>
+
+        <Pressable
+          onPress={() => navigation.navigate('Household')}
+          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardActive]}
+        >
+          <Ionicons name="people-outline" size={20} color={colors.ink} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Household</Text>
+            <Text style={styles.linkSub}>Members &amp; invitations</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.inkSoft} />
+        </Pressable>
 
         <InfoRow icon="server-outline" label="Server" value={API_BASE_URL} />
         <InfoRow icon="cube-outline" label="App version" value="1.0.0" />
@@ -166,6 +180,15 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 10 },
   infoLabel: { fontFamily: fonts.mono, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: colors.inkSoft },
   infoValue: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.ink, marginTop: 3 },
+
+  linkCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 16, marginBottom: 10, borderRadius: 4,
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.rule || '#e8dcc1',
+  },
+  linkCardActive: { backgroundColor: 'rgba(201,98,31,0.06)' },
+  linkTitle: { fontFamily: fonts.sansMedium, fontSize: 15, color: colors.ink },
+  linkSub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.inkSoft, marginTop: 2 },
 
   dangerZone: { marginTop: 40 },
   dangerLabel: {

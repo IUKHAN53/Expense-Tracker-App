@@ -15,6 +15,7 @@ import FuelScreen from '../screens/FuelScreen';
 import FuelEntryScreen from '../screens/FuelEntryScreen';
 import ScanScreen from '../screens/ScanScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import HouseholdScreen from '../screens/HouseholdScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -83,6 +84,7 @@ export default function RootNavigator() {
           <Stack.Screen name="ListDetail" component={ListDetailScreen} options={{ title: 'List' }} />
           <Stack.Screen name="AddEntry" component={AddEntryScreen} options={{ title: 'Add Expense' }} />
           <Stack.Screen name="FuelEntry" component={FuelEntryScreen} options={{ title: 'New refill' }} />
+          <Stack.Screen name="Household" component={HouseholdScreen} options={{ title: 'Household' }} />
         </>
       )}
     </Stack.Navigator>
