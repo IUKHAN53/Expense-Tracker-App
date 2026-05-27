@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 500" width="1024" height="500" preserveAspectRatio="xMidYMid slice">
+    <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#fdf8ee"/>
+            <stop offset="100%" stop-color="#f6ecd6"/>
+        </linearGradient>
+        <radialGradient id="wash" cx="0.12" cy="-0.05" r="0.7">
+            <stop offset="0%" stop-color="#c9621f" stop-opacity="0.18"/>
+            <stop offset="60%" stop-color="#c9621f" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="washTwo" cx="1" cy="1" r="0.5">
+            <stop offset="0%" stop-color="#a04a13" stop-opacity="0.14"/>
+            <stop offset="100%" stop-color="#a04a13" stop-opacity="0"/>
+        </radialGradient>
+        <filter id="noise">
+            <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/>
+            <feColorMatrix values="0 0 0 0 0.17  0 0 0 0 0.12  0 0 0 0 0.07  0 0 0 0.16 0"/>
+        </filter>
+    </defs>
+
+    <!-- Base paper -->
+    <rect width="1024" height="500" fill="url(#bg)"/>
+    <rect width="1024" height="500" fill="url(#wash)"/>
+    <rect width="1024" height="500" fill="url(#washTwo)"/>
+    <rect width="1024" height="500" filter="url(#noise)" opacity="0.45"/>
+
+    <!-- Top edge separator -->
+    <line x1="0" y1="0" x2="1024" y2="0" stroke="#e8dcc1"/>
+
+    <!-- Brand mark + wordmark, top-left, safely inside the 92px gutter Google may crop -->
+    <g transform="translate(96,60)">
+        <rect x="0" y="0" width="48" height="48" rx="9" fill="#2b1f12"/>
+        <line x1="7" y1="37" x2="41" y2="37" stroke="#c9621f" stroke-width="0.7" opacity="0.35"/>
+        <path d="M7 32 L 14 22 L 20 28 L 27 15 L 34 25 L 41 19" fill="none" stroke="#fdf8ee" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="14" cy="22" r="1.6" fill="#c9621f"/>
+        <circle cx="27" cy="15" r="1.6" fill="#c9621f"/>
+        <circle cx="41" cy="19" r="1.6" fill="#c9621f"/>
+        <text x="64" y="33" font-family="Newsreader, Georgia, serif" font-style="italic" font-weight="500" font-size="32" fill="#2b1f12">kharcha</text>
+    </g>
+
+    <!-- Eyebrow -->
+    <g transform="translate(96,164)">
+        <line x1="0" y1="10" x2="36" y2="10" stroke="#c9621f" stroke-opacity="0.6" stroke-width="1"/>
+        <text x="52" y="15" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="13" letter-spacing="4.6" fill="#a04a13">A HOUSEHOLD LEDGER, KEPT BY HAND</text>
+    </g>
+
+    <!-- Display headline (kept inside the safe central area) -->
+    <g transform="translate(96,210)">
+        <text font-family="Newsreader, Georgia, serif" font-style="italic" font-weight="500" font-size="86" letter-spacing="-2.5" fill="#2b1f12">
+            <tspan x="0" dy="0">Where the</tspan>
+            <tspan x="0" dy="86"><tspan fill="#c9621f" font-weight="600">month</tspan>, went<tspan fill="#c9621f" font-weight="600">.</tspan></tspan>
+        </text>
+    </g>
+
+    <!-- Tagline strip at bottom-left -->
+    <g transform="translate(96,452)">
+        <text font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="13" letter-spacing="3.6" fill="#6b5b46">SCAN · SPLIT · FUEL · MADE IN PAKISTAN</text>
+    </g>
+
+    <!-- Decorative receipt on the right, tilted -->
+    <g transform="translate(694,90) rotate(-5)">
+        <!-- shadow -->
+        <rect x="6" y="14" width="242" height="320" rx="3" fill="#2b1f12" opacity="0.10" filter="url(#shadow)"/>
+        <!-- card -->
+        <rect x="0" y="0" width="242" height="320" rx="3" fill="#fffbf2" stroke="#e8dcc1"/>
+        <!-- top serrated edge -->
+        <g fill="#fdf8ee">
+            <circle cx="6" cy="0" r="4"/><circle cx="18" cy="0" r="4"/><circle cx="30" cy="0" r="4"/><circle cx="42" cy="0" r="4"/>
+            <circle cx="54" cy="0" r="4"/><circle cx="66" cy="0" r="4"/><circle cx="78" cy="0" r="4"/><circle cx="90" cy="0" r="4"/>
+            <circle cx="102" cy="0" r="4"/><circle cx="114" cy="0" r="4"/><circle cx="126" cy="0" r="4"/><circle cx="138" cy="0" r="4"/>
+            <circle cx="150" cy="0" r="4"/><circle cx="162" cy="0" r="4"/><circle cx="174" cy="0" r="4"/><circle cx="186" cy="0" r="4"/>
+            <circle cx="198" cy="0" r="4"/><circle cx="210" cy="0" r="4"/><circle cx="222" cy="0" r="4"/><circle cx="234" cy="0" r="4"/>
+        </g>
+
+        <text x="22" y="44" font-family="Newsreader, Georgia, serif" font-style="italic" font-size="26" font-weight="500" fill="#2b1f12">Imtiaz</text>
+        <text x="22" y="68" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" letter-spacing="2" fill="#a89478">KARACHI · 17:42</text>
+
+        <g font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="13" fill="#2b1f12">
+            <text x="22" y="106">Milk 1L</text><text x="220" y="106" text-anchor="end">540</text>
+            <text x="22" y="130">Atta 10kg</text><text x="220" y="130" text-anchor="end">1,820</text>
+            <text x="22" y="154">Soap</text><text x="220" y="154" text-anchor="end">360</text>
+            <text x="22" y="178">Rooh Afza</text><text x="220" y="178" text-anchor="end">440</text>
+            <text x="22" y="202">Eggs</text><text x="220" y="202" text-anchor="end">720</text>
+        </g>
+
+        <line x1="22" y1="218" x2="220" y2="218" stroke="#d8c7a3" stroke-dasharray="2.5 2.5"/>
+
+        <text x="22" y="246" font-family="Newsreader, Georgia, serif" font-style="italic" font-size="19" fill="#2b1f12">Total</text>
+        <text x="220" y="246" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="19" font-weight="500" text-anchor="end" fill="#2b1f12">Rs 3,880</text>
+
+        <circle cx="32" cy="278" r="4" fill="#c9621f"/>
+        <text x="42" y="282" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="10" letter-spacing="2" fill="#a04a13">SCANNED · ROUTED TO HOME</text>
+
+        <!-- bottom serrated edge -->
+        <g fill="#fdf8ee" transform="translate(0,320)">
+            <circle cx="6" cy="0" r="4"/><circle cx="18" cy="0" r="4"/><circle cx="30" cy="0" r="4"/><circle cx="42" cy="0" r="4"/>
+            <circle cx="54" cy="0" r="4"/><circle cx="66" cy="0" r="4"/><circle cx="78" cy="0" r="4"/><circle cx="90" cy="0" r="4"/>
+            <circle cx="102" cy="0" r="4"/><circle cx="114" cy="0" r="4"/><circle cx="126" cy="0" r="4"/><circle cx="138" cy="0" r="4"/>
+            <circle cx="150" cy="0" r="4"/><circle cx="162" cy="0" r="4"/><circle cx="174" cy="0" r="4"/><circle cx="186" cy="0" r="4"/>
+            <circle cx="198" cy="0" r="4"/><circle cx="210" cy="0" r="4"/><circle cx="222" cy="0" r="4"/><circle cx="234" cy="0" r="4"/>
+        </g>
+    </g>
+</svg>

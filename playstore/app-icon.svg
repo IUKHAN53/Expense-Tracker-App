@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kharcha app icon. Convert to 512x512 PNG with rsvg-convert (see store-listing.md). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+    <!-- Tinted background plate -->
+    <rect x="0" y="0" width="512" height="512" rx="112" fill="#2b1f12"/>
+
+    <!-- Subtle baseline guide line of the chart -->
+    <line x1="92" y1="402" x2="420" y2="402" stroke="#c9621f" stroke-width="3" opacity="0.35"/>
+
+    <!-- The Mark B chart line -->
+    <path
+        d="M 92 354
+           L 162 244
+           L 222 310
+           L 290 174
+           L 358 282
+           L 420 212"
+        fill="none"
+        stroke="#fdf8ee"
+        stroke-width="14"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+    <!-- Saffron data points on the peaks/valleys that matter -->
+    <circle cx="162" cy="244" r="15" fill="#c9621f"/>
+    <circle cx="290" cy="174" r="15" fill="#c9621f"/>
+    <circle cx="420" cy="212" r="15" fill="#c9621f"/>
+</svg>
