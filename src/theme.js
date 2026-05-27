@@ -29,27 +29,12 @@ export const fonts = {
   monoMedium: 'GeistMono-Medium',
 };
 
-/** Format a number as PKR with Pakistani digit grouping — money(142860) -> "Rs 1,42,860". */
-export function money(value) {
-  const v = Math.round(Number(value) || 0);
-  const neg = v < 0;
-  const s = Math.abs(v).toString();
-  let last3 = s.slice(-3);
-  let rest = s.slice(0, -3);
-  if (rest) {
-    last3 = `,${last3}`;
-    rest = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',');
-  }
-  return `${neg ? '-' : ''}Rs ${rest}${last3}`;
-}
-
-/** Compact money — "Rs 4.9k", "Rs 142k". */
-export function moneyShort(value) {
-  const n = Math.round(Number(value) || 0);
-  if (n >= 100000) return `Rs ${Math.round(n / 1000)}k`;
-  if (n >= 1000) return `Rs ${(n / 1000).toFixed(1)}k`;
-  return `Rs ${n}`;
-}
+// Legacy single-arg formatters. The whole app should migrate to
+// `useMoney()` from src/hooks/useMoney so amounts render in the user's
+// chosen currency; these stay so old imports do not crash, defaulting
+// to USD so an un-migrated screen looks obviously wrong rather than
+// silently in the wrong currency.
+export { money, moneyShort } from './support/currency';
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const MONTHS_LONG = [

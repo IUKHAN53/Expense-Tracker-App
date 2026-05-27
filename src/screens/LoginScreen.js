@@ -88,7 +88,7 @@ export default function LoginScreen({ navigation }) {
           </Text>
         </Pressable>
 
-        <Text style={styles.footnote}>Private ledger · Pakistani Rupee</Text>
+        <Text style={styles.footnote}>Private ledger · Your currency</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );

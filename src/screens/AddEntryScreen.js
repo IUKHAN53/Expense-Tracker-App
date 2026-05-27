@@ -1,17 +1,10 @@
 import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import api, { errorMessage } from '../api/client';
 import { Avatar, Button, CatChip, KLabel, Loading } from '../components/ui';
-import { colors, fonts, formatDate, money } from '../theme';
+import { colors, fonts, formatDate } from '../theme';
+import { useMoney } from '../hooks/useMoney';
 
 function toServerDate(d) {
   const p = (n) => String(n).padStart(2, '0');
@@ -19,6 +12,7 @@ function toServerDate(d) {
 }
 
 export default function AddEntryScreen({ route, navigation }) {
+  const money = useMoney();
   const editing = route.params?.entry || null;
   const presetListId = route.params?.listId || null;
 

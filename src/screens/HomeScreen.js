@@ -1,28 +1,16 @@
 import React, { useCallback, useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,  } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import api, { errorMessage } from '../api/client';
 import { AppHeader } from '../components/Header';
-import {
-  Card,
-  EmptyState,
-  Loading,
-  PersonBar,
-  SectionHeader,
-} from '../components/ui';
+import { Card, EmptyState, Loading, PersonBar, SectionHeader,  } from '../components/ui';
 import { CategoryBreakdown, ExpenseItem } from '../components/bits';
-import { colors, currentMonthKey, fonts, money, monthLabelShort } from '../theme';
+import { colors, currentMonthKey, fonts, monthLabelShort } from '../theme';
+import { useMoney } from '../hooks/useMoney';
 
 export default function HomeScreen({ navigation }) {
+  const money = useMoney();
   const [summary, setSummary] = useState(null);
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);

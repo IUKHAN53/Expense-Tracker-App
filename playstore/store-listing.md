@@ -28,29 +28,35 @@ Kharcha · Expense Tracker
 Up to 80 chars. This shows under the app name on the listing card.
 
 ```
-Track every household rupee. AI scans receipts. Made in Pakistan.
+Track every household rupee, dollar or rupee. AI scans receipts, you split.
 ```
 
-(65 chars)
+(74 chars)
+
+Alternative (76 chars):
+
+```
+Household expense tracker with AI receipt scans. Multi-currency, multi-user.
+```
 
 ---
 
 ## Full description
 
-Up to 4000 chars. Below is ~1900 — leaves headroom for future feature
+Up to 4000 chars. Below is ~2000 — leaves headroom for future feature
 additions without redoing ASO work.
 
 ```
-Kharcha is the calm expense tracker for Pakistani households. Snap a receipt with the camera, split a bill across the family, log fuel by the litre, and see exactly where the month went — without spreadsheets, and without learning a new vocabulary.
+Kharcha is the calm expense tracker for households anywhere in the world. Snap a receipt with the camera, split a bill across the family, log fuel by the litre, and see exactly where the month went — without spreadsheets, and without learning a new vocabulary.
 
 ▸ AI receipt scanning
-Point the camera at a paper receipt or a phone bill. Kharcha reads every line, totals it up, and asks who the items belong to. Three free scans every month; unlimited on Pro.
+Point the camera at a paper receipt, a phone bill, a grocery slip. Kharcha reads every line, totals it up, and asks who the items belong to. Three free scans every month; unlimited on Pro.
 
 ▸ Split a bill across the family
 Tap two, three, four people on one expense. Kharcha divides it evenly and writes one entry into each person's list, all tied to the same split, so the household total is always honest.
 
 ▸ Fuel, the way drivers measure it
-Log a refill by rupees and rate; Kharcha computes the litres, your km / L, and your Rs / km between full tanks. A dedicated Fuel tab keeps the car's history separate from the household ledger.
+Log a refill by amount and rate; Kharcha computes the litres, your km / L (or miles / gal), and your per-distance cost between full tanks. A dedicated Fuel tab keeps the car's history separate from the household ledger.
 
 ▸ A list per person, plus Home and Car
 Separate ledgers for each household member, plus Home and Car. One monthly view across all of them. The dashboard answers the question parents actually ask: where did the month go?
@@ -58,18 +64,19 @@ Separate ledgers for each household member, plus Home and Car. One monthly view 
 ▸ Invite the family. One household, one ledger.
 Send an email invitation to your spouse, parent or child. They sign up and join your household instead of starting a separate ledger. Free fits up to 3 members; Pro raises the cap to 5, and Pro inherits across every member — no separate billing per person.
 
-— PRICING IN PAKISTANI RUPEES —
+— PICK YOUR CURRENCY —
+On first sign-in, choose from USD, GBP, EUR, INR, PKR, BDT, LKR, AED, SAR, CAD, AUD and more. Every amount you enter is shown in your currency, with the right symbol and the right digit grouping. Change it any time from Settings.
+
+— TRANSPARENT PRICING —
 Free forever: 3 AI scans per month, up to 3 household members, every other feature unlimited.
-Pro Monthly (PKR 499): unlimited AI scans, up to 5 members.
-Pro Lifetime (PKR 7,999): pay once, never again.
-
-Detect your region automatically; PKR, INR, BDT, LKR, AED, GBP and USD are supported.
-
-— BUILT FOR PAKISTANI HOUSEHOLDS —
-Made in Karachi by a small team. Currency is PKR by default. The AI has been trained on local receipts from Imtiaz, Carrefour, Naheed, Al-Fatah, neighbourhood karyana stores, Shaheen Chemists, pharmacies and fuel pumps across Pakistan.
+Pro Monthly: unlimited AI scans, up to 5 members. Pricing adapts to your region: USD 1.99, GBP 1.49, INR 149, PKR 499 or your local equivalent.
+Pro Lifetime: pay once, never again. USD 29.99 or your local equivalent.
 
 — PRIVACY YOU CAN READ —
 We never sell your data. Not to advertisers, not to banks, not to credit scorers. Receipt photos are sent to Google's Gemini API for parsing and immediately released — only the parsed text stays in your account. You can export everything as CSV from settings and delete your account in one tap. Full notice at https://expense.iukhan.tech/privacy
+
+— BUILT BY A SOLO DEVELOPER —
+Made by Irfan Ullah, a full-stack developer who built Kharcha because his own household kept losing track of who paid for what. It exists because no other expense tracker treated a household the way one actually shops.
 
 — SUPPORT FROM A REAL HUMAN —
 The same person who wrote the code answers the support email. Reply times stretch when life gets busy, but they always reach a human. hello@iukhan.tech
@@ -83,7 +90,7 @@ The same person who wrote the code answers the support email. Reply times stretc
 |---|---|
 | Application type | App |
 | Category | Finance |
-| Tags | Budgeting, Expense Tracker, Family Finance, Bills |
+| Tags | Budgeting, Expense Tracker, Family Finance, Bills, Personal Finance |
 
 ---
 
@@ -96,7 +103,7 @@ Answer the IARC questionnaire as:
 | User-generated content visible to others outside the household? | No |
 | Violence, sexual content, profanity | None |
 | Gambling | None |
-| In-app purchases | Yes (Pro plans — but not yet wired through Play Billing) |
+| In-app purchases | No (until Play Billing is wired for Pro) |
 | User-to-user communication | Only between accepted household members (invite-gated) |
 | Shares user location | No |
 | Personal info collected | Email, name |
@@ -139,6 +146,7 @@ Use these answers verbatim — they match what the app actually does.
 |---|---|
 | Target age groups | 13 and older |
 | Appeals to children | No |
+| Countries | Available worldwide (no country restriction) |
 
 ---
 
@@ -159,7 +167,7 @@ Use these answers verbatim — they match what the app actually does.
 |---|---|
 | Pricing model | Free with in-app products (when Play Billing is wired) |
 | Contains ads | No |
-| Currency | PKR primary, USD secondary |
+| Currency at upload | USD (Play default); regional pricing handled by Play |
 
 Until Play Billing is wired, **set "Contains in-app purchases" to No** and answer the IARC IAP question as "No". Flip both to Yes when Pro becomes purchasable through Play.
 
@@ -167,16 +175,16 @@ Until Play Billing is wired, **set "Contains in-app purchases" to No** and answe
 
 ## Screenshots needed (2–8 phone screenshots)
 
-Install the preview APK on a real Android phone, sign in, then capture:
+Install the production AAB on a real Android phone, sign in, then capture:
 
-1. **Home / dashboard** — current month total + per-person split bar
-2. **List detail** — drilled-in entry list with categories
-3. **Add Expense** — multi-person split selection
-4. **Fuel tab** — km/L hero + refill cards
-5. **Scan in progress** — camera view (or just-parsed items)
-6. **Household members** — invite + members list
-7. **Settings** — profile + Household + Danger zone
-8. (optional) **Verify email** — the OTP screen with a code visible
+1. **Currency picker** — first-launch screen choosing the display currency
+2. **Home / dashboard** — current month total + per-person split bar
+3. **List detail** — drilled-in entry list with categories
+4. **Add Expense** — multi-person split selection
+5. **Fuel tab** — km/L hero + refill cards
+6. **Scan in progress** — camera view (or just-parsed items)
+7. **Household members** — invite + members list
+8. **Settings** — profile + Household + currency + Danger zone
 
 Phone screenshots must be 16:9 portrait, min 320 px on the short side.
 
@@ -185,33 +193,16 @@ Phone screenshots must be 16:9 portrait, min 320 px on the short side.
 ## Asset preparation
 
 `feature-graphic.svg` (1024×500) and `app-icon.svg` (512×512) live next to
-this file. Play Console requires PNG, not SVG, so convert before upload:
+this file, with PNG conversions ready to upload (`feature-graphic.png`,
+`app-icon.png`). Re-generate any time:
 
-**Option A — online converter**
-Use https://svgtopng.com or any reliable SVG→PNG tool. Upload the SVG,
-set output to the exact dimensions, download.
-
-**Option B — Inkscape (best fidelity)**
-```
-inkscape feature-graphic.svg --export-type=png --export-width=1024
-inkscape app-icon.svg --export-type=png --export-width=512
+```bash
+rsvg-convert -w 1024 -h 500 feature-graphic.svg -o feature-graphic.png
+rsvg-convert -w 512  -h 512 app-icon.svg        -o app-icon.png
 ```
 
-**Option C — ImageMagick (if you have it)**
-```
-magick convert -background none -density 144 feature-graphic.svg -resize 1024x500 feature-graphic.png
-magick convert -background none -density 144 app-icon.svg     -resize 512x512   app-icon.png
-```
-
-**Option D — Chrome headless (zero install if Chrome is available)**
-```
-chrome --headless --disable-gpu --window-size=1024,500 --screenshot=feature-graphic.png file:///path/to/feature-graphic.svg
-chrome --headless --disable-gpu --window-size=512,512  --screenshot=app-icon.png       file:///path/to/app-icon.svg
-```
-
-Sanity-check the output: feature graphic should preserve crisp typography
-and the saffron accent; app icon must still look like the Mark B at 64×64
-(the smallest size Play renders it).
+Or via Inkscape / online SVG-to-PNG / Chrome headless if `rsvg-convert`
+is not installed locally.
 
 ---
 
@@ -227,9 +218,9 @@ Before hitting "Send for review":
 - [ ] Privacy policy URL set
 - [ ] Data Safety form filled per table above
 - [ ] Content rating questionnaire completed
-- [ ] Target audience: 13+
+- [ ] Target audience: 13+, available worldwide
 - [ ] Set up "Internal testing" track first (closed list, 20-person cap, no review)
-- [ ] Install AAB on a real device via the internal-testing link, run through signup → verify → invite → scan → delete-account
+- [ ] Install AAB on a real device via the internal-testing link, run through: sign up → verify email → pick currency → invite member → scan → delete-account
 - [ ] Promote to "Closed testing" (open to wider testers, still no Google review for the testing track)
 - [ ] Only then promote to Production for Google review (review typically 1–7 days)
 
@@ -237,6 +228,7 @@ Before hitting "Send for review":
 
 ## Honest unknowns
 
-- **DKIM is still not configured on `iukhan.tech`.** Verification + invite + reset emails to Gmail/Outlook/Yahoo will spam-folder by default. Fix this before the first real user signs up or you'll have a flood of "I never got the code" support tickets. Zoho dashboard → Mail Settings → Email Configuration → DKIM.
-- **In-app purchases for Pro are not wired through Play Billing.** Marketing pages list Pro plans; the app currently can't take a payment. Either (a) launch Free-only and remove Pro from the app (web pricing page stays), or (b) integrate RevenueCat / Play Billing before submitting. Play will flag a discrepancy between "in-app purchases declared" and "no purchase flow in app" if you set IAP=Yes without one wired.
-- **No crash reporting.** First real crash in production = you'll never know. 30 minutes to wire Sentry; worth doing before a real launch.
+- **DKIM is still not configured on `iukhan.tech`.** Verification + invite + reset emails to Gmail/Outlook/Yahoo will spam-folder by default. Fix this before the first real user signs up. Zoho dashboard → Mail Settings → Email Configuration → DKIM.
+- **In-app purchases for Pro are not wired through Play Billing.** Mention Pro in the long description as a feature, but submit with IAP=No until Play Billing (or RevenueCat) is integrated.
+- **No crash reporting.** First real crash in production = you'll never know. 30 minutes to wire Sentry; worth doing before launch.
+- **Multi-language is not yet shipped.** Currency is selectable; UI strings remain English-only for v1. Translations are a planned follow-up.

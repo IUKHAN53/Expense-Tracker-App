@@ -1,7 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar, CatChip } from './ui';
-import { categoryStyle, colors, fonts, money, moneyShort } from '../theme';
+import { categoryStyle, colors, fonts } from '../theme';
+import { useMoney } from '../hooks/useMoney';
 
 function shortDate(iso) {
   if (!iso) return '';

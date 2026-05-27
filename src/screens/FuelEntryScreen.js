@@ -1,18 +1,11 @@
 import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import api, { errorMessage } from '../api/client';
 import { Button, KLabel, Loading } from '../components/ui';
-import { colors, fonts, formatDate, money } from '../theme';
+import { colors, fonts, formatDate } from '../theme';
+import { useMoney } from '../hooks/useMoney';
 
 const FUEL_TYPES = ['E92', 'E95', 'E98'];
 
@@ -22,6 +15,7 @@ function toServerDate(d) {
 }
 
 export default function FuelEntryScreen({ route, navigation }) {
+  const money = useMoney();
   const editing = route.params?.entry || null;
 
   const [carListId, setCarListId] = useState(null);
@@ -173,7 +167,7 @@ export default function FuelEntryScreen({ route, navigation }) {
         <Text style={styles.calcLabel}>That's</Text>
         <Text style={styles.calcValue}>{liters > 0 ? liters.toFixed(2) : '0.00'} L</Text>
         <Text style={styles.calcSub}>
-          {liters > 0 ? `${money(Number(amount) || 0)} at Rs ${Number(rate).toFixed(2)}/L` : 'Enter rate and amount'}
+          {liters > 0 ? `${money(Number(amount) || 0)} at ${money(Number(rate) || 0)}/L` : 'Enter rate and amount'}
         </Text>
       </View>
 

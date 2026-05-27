@@ -1,20 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
 import api, { API_BASE_URL, errorMessage } from '../api/client';
 import { AppHeader } from '../components/Header';
 import { Avatar, Button, Card, Loading, PickerModal } from '../components/ui';
-import { colors, fonts, money, personColor } from '../theme';
+import { colors, fonts, personColor } from '../theme';
+import { useMoney } from '../hooks/useMoney';
 
 const TYPE_LABEL = {
   grocery: 'Grocery',
@@ -24,6 +17,7 @@ const TYPE_LABEL = {
 };
 
 export default function ScanScreen() {
+  const money = useMoney();
   const [phase, setPhase] = useState('idle'); // idle | uploading | review | done
   const [lists, setLists] = useState([]);
   const [scan, setScan] = useState(null);

@@ -6,7 +6,8 @@ import Svg, { Circle, Line, Polyline } from 'react-native-svg';
 import api, { errorMessage } from '../api/client';
 import { AppHeader } from '../components/Header';
 import { Card, EmptyState, Loading } from '../components/ui';
-import { colors, fonts, formatDate, money } from '../theme';
+import { colors, fonts, formatDate } from '../theme';
+import { useMoney } from '../hooks/useMoney';
 
 /** "2026.05.10" — matches the CarExpenses layout. */
 function ymdDot(iso) {
@@ -22,6 +23,7 @@ function nfmt(n) {
 }
 
 export default function FuelScreen({ navigation }) {
+  const money = useMoney();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

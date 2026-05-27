@@ -76,6 +76,18 @@ export default function SettingsScreen() {
           <Ionicons name="chevron-forward" size={18} color={colors.inkSoft} />
         </Pressable>
 
+        <Pressable
+          onPress={() => navigation.navigate('CurrencyPicker', { isChange: true })}
+          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardActive]}
+        >
+          <Ionicons name="cash-outline" size={20} color={colors.ink} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Currency</Text>
+            <Text style={styles.linkSub}>{user?.account?.currency || 'USD'} · Tap to change</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.inkSoft} />
+        </Pressable>
+
         <InfoRow icon="server-outline" label="Server" value={API_BASE_URL} />
         <InfoRow icon="cube-outline" label="App version" value="1.0.0" />
 

@@ -17,6 +17,7 @@ import ScanScreen from '../screens/ScanScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import HouseholdScreen from '../screens/HouseholdScreen';
 import VerifyEmailScreen from '../screens/VerifyEmailScreen';
+import CurrencyPickerScreen from '../screens/CurrencyPickerScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -65,7 +66,7 @@ function Tabs() {
 }
 
 export default function RootNavigator() {
-  const { ready, token, requiresVerification } = useAuth();
+  const { ready, token, requiresVerification, requiresCurrency } = useAuth();
 
   if (!ready) {
     return <Loading label="Loading…" />;
@@ -81,6 +82,8 @@ export default function RootNavigator() {
         </>
       ) : requiresVerification ? (
         <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} options={{ headerShown: false }} />
+      ) : requiresCurrency ? (
+        <Stack.Screen name="CurrencyPicker" component={CurrencyPickerScreen} options={{ headerShown: false }} />
       ) : (
         <>
           <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
@@ -88,6 +91,7 @@ export default function RootNavigator() {
           <Stack.Screen name="AddEntry" component={AddEntryScreen} options={{ title: 'Add Expense' }} />
           <Stack.Screen name="FuelEntry" component={FuelEntryScreen} options={{ title: 'New refill' }} />
           <Stack.Screen name="Household" component={HouseholdScreen} options={{ title: 'Household' }} />
+          <Stack.Screen name="CurrencyPicker" component={CurrencyPickerScreen} options={{ title: 'Currency' }} />
         </>
       )}
     </Stack.Navigator>

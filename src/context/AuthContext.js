@@ -91,7 +91,20 @@ export function AuthProvider({ children }) {
     return res.data?.message;
   };
 
+  const setCurrency = async (code) => {
+    const res = await api.post('/account/currency', { currency: code });
+    const next = {
+      ...user,
+      account: { ...(user?.account || {}), currency: res.data?.currency || code, requires_currency: false },
+    };
+    setUser(next);
+    await saveSession({ token, user: next });
+  };
+
   const requiresVerification = Boolean(token && user && !user.email_verified_at);
+  const requiresCurrency = Boolean(
+    token && user?.email_verified_at && user?.account && !user.account.currency,
+  );
 
   return (
     <AuthContext.Provider
@@ -106,7 +119,9 @@ export function AuthProvider({ children }) {
         deleteAccount,
         verifyEmail,
         resendVerificationCode,
+        setCurrency,
         requiresVerification,
+        requiresCurrency,
       }}
     >
       {children}

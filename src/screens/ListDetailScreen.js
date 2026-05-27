@@ -3,17 +3,13 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import api, { errorMessage } from '../api/client';
-import {
-  Avatar,
-  Card,
-  EmptyState,
-  Loading,
-  SectionHeader,
-} from '../components/ui';
+import { Avatar, Card, EmptyState, Loading, SectionHeader,  } from '../components/ui';
 import { CategoryBreakdown, ExpenseItem } from '../components/bits';
-import { colors, currentMonthKey, fonts, money, monthLabel } from '../theme';
+import { colors, currentMonthKey, fonts, monthLabel } from '../theme';
+import { useMoney } from '../hooks/useMoney';
 
 export default function ListDetailScreen({ route, navigation }) {
+  const money = useMoney();
   const { list } = route.params;
   const [entries, setEntries] = useState([]);
   const [total, setTotal] = useState(0);
