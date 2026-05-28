@@ -13,8 +13,10 @@ import {
 import { Geist_400Regular, Geist_500Medium, Geist_600SemiBold } from '@expo-google-fonts/geist';
 import { GeistMono_400Regular, GeistMono_500Medium } from '@expo-google-fonts/geist-mono';
 import { AuthProvider } from './src/context/AuthContext';
+import { ConnectivityProvider } from './src/context/ConnectivityContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { OfflineBanner } from './src/components/OfflineBanner';
 import { colors } from './src/theme';
 
 const navTheme = {
@@ -47,10 +49,15 @@ export default function App() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <AuthProvider>
-          <NavigationContainer theme={navTheme}>
-            <RootNavigator />
-          </NavigationContainer>
-          <StatusBar style="dark" />
+          <ConnectivityProvider>
+            <NavigationContainer theme={navTheme}>
+              <View style={{ flex: 1 }}>
+                <OfflineBanner />
+                <RootNavigator />
+              </View>
+            </NavigationContainer>
+            <StatusBar style="dark" />
+          </ConnectivityProvider>
         </AuthProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

@@ -9,6 +9,7 @@ import { CategoryBreakdown, ExpenseItem } from '../components/bits';
 import { colors, currentMonthKey, fonts, monthLabelShort } from '../theme';
 import { useMoney } from '../hooks/useMoney';
 import { on, EVENTS } from '../support/events';
+import { getCache, setCache } from '../support/cache';
 
 export default function HomeScreen({ navigation }) {
   const money = useMoney();
@@ -29,8 +30,17 @@ export default function HomeScreen({ navigation }) {
       ]);
       setSummary(s.data);
       setEntries(e.data.data || []);
+      setCache('home', { summary: s.data, entries: e.data.data || [] });
     } catch (err) {
-      setError(errorMessage(err));
+      // Offline / server unreachable: fall back to the last cached view.
+      // The global offline banner already signals the connection state.
+      const cached = await getCache('home');
+      if (cached?.data?.summary) {
+        setSummary(cached.data.summary);
+        setEntries(cached.data.entries || []);
+      } else {
+        setError(errorMessage(err));
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);

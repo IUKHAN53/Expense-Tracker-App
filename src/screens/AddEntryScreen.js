@@ -5,6 +5,9 @@ import api, { errorMessage } from '../api/client';
 import { Avatar, Button, CatChip, KLabel, Loading } from '../components/ui';
 import { colors, fonts, formatDate } from '../theme';
 import { useCurrency, useMoney } from '../hooks/useMoney';
+import { useOnline } from '../context/ConnectivityContext';
+import { enqueueEntry } from '../support/outbox';
+import { isNetworkError } from '../support/net';
 import { emit, EVENTS } from '../support/events';
 
 function toServerDate(d) {
@@ -15,6 +18,7 @@ function toServerDate(d) {
 export default function AddEntryScreen({ route, navigation }) {
   const money = useMoney();
   const ccy = useCurrency();
+  const { online, refreshPending } = useOnline();
   const editing = route.params?.entry || null;
   const presetListId = route.params?.listId || null;
 
@@ -111,20 +115,41 @@ export default function AddEntryScreen({ route, navigation }) {
       fuel_rate: isVehicle && fuelRate ? Number(fuelRate) : null,
       odometer: isVehicle && odometer ? Number(odometer) : null,
     };
+    // Split mode divides evenly across the chosen lists (server-side).
+    const createPayload = listIds.length > 1
+      ? { ...base, spending_list_ids: listIds }
+      : { ...base, spending_list_id: listIds[0] };
+
+    const queueOffline = async () => {
+      await enqueueEntry(createPayload);
+      await refreshPending();
+      setSaving(false);
+      Alert.alert('Saved offline', 'This expense is queued and will sync automatically when you’re back online.');
+      navigation.goBack();
+    };
+
+    // Editing needs the record to exist server-side — not available offline.
+    if (editing && !online) {
+      setSaving(false);
+      return setError("You're offline — editing an expense needs a connection.");
+    }
+    if (!editing && !online) {
+      return queueOffline();
+    }
 
     try {
       if (editing) {
-        // Edit always stays single-list.
         await api.put(`/entries/${editing.id}`, { ...base, spending_list_id: listIds[0] });
-      } else if (listIds.length > 1) {
-        // Split — server divides evenly across listIds.
-        await api.post('/entries', { ...base, spending_list_ids: listIds });
       } else {
-        await api.post('/entries', { ...base, spending_list_id: listIds[0] });
+        await api.post('/entries', createPayload);
       }
       emit(EVENTS.ENTRIES_CHANGED);
       navigation.goBack();
     } catch (e) {
+      // Lost the connection mid-save while creating? Queue instead of failing.
+      if (!editing && isNetworkError(e)) {
+        return queueOffline();
+      }
       setError(errorMessage(e, 'Could not save the expense.'));
       setSaving(false);
     }

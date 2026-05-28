@@ -6,6 +6,9 @@ import api, { errorMessage } from '../api/client';
 import { Button, KLabel, Loading } from '../components/ui';
 import { colors, fonts, formatDate } from '../theme';
 import { useCurrency, useMoney } from '../hooks/useMoney';
+import { useOnline } from '../context/ConnectivityContext';
+import { enqueueEntry } from '../support/outbox';
+import { isNetworkError } from '../support/net';
 import { emit, EVENTS } from '../support/events';
 
 const FUEL_TYPES = ['E92', 'E95', 'E98'];
@@ -18,6 +21,7 @@ function toServerDate(d) {
 export default function FuelEntryScreen({ route, navigation }) {
   const money = useMoney();
   const ccy = useCurrency();
+  const { online, refreshPending } = useOnline();
   const editing = route.params?.entry || null;
 
   const [carListId, setCarListId] = useState(null);
@@ -98,6 +102,22 @@ export default function FuelEntryScreen({ route, navigation }) {
       is_full_tank: isFullTank,
     };
 
+    const queueOffline = async () => {
+      await enqueueEntry(payload);
+      await refreshPending();
+      setSaving(false);
+      Alert.alert('Saved offline', 'This refill is queued and will sync automatically when you’re back online.');
+      navigation.goBack();
+    };
+
+    if (editing && !online) {
+      setSaving(false);
+      return setError("You're offline — editing a refill needs a connection.");
+    }
+    if (!editing && !online) {
+      return queueOffline();
+    }
+
     try {
       if (editing) {
         await api.put(`/entries/${editing.id}`, payload);
@@ -107,6 +127,9 @@ export default function FuelEntryScreen({ route, navigation }) {
       emit(EVENTS.ENTRIES_CHANGED);
       navigation.goBack();
     } catch (e) {
+      if (!editing && isNetworkError(e)) {
+        return queueOffline();
+      }
       setError(errorMessage(e, 'Could not save the refill.'));
       setSaving(false);
     }

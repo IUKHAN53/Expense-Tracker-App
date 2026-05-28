@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,8 +9,10 @@ import { Avatar, Button, Card, Loading, PickerModal } from '../components/ui';
 import { colors, fonts, personColor } from '../theme';
 import { useMoney } from '../hooks/useMoney';
 import { useAuth } from '../context/AuthContext';
+import { useOnline } from '../context/ConnectivityContext';
 import { CURRENCIES, currencyMeta, money as fmtMoney } from '../support/currency';
 import { fetchRate } from '../support/fx';
+import { saveToGallery } from '../support/gallery';
 import { emit, EVENTS } from '../support/events';
 
 const TYPE_LABEL = {
@@ -23,6 +25,7 @@ const TYPE_LABEL = {
 export default function ScanScreen() {
   const money = useMoney();
   const { user } = useAuth();
+  const { online } = useOnline();
   const baseCcy = user?.account?.currency || 'USD';
 
   const [phase, setPhase] = useState('idle'); // idle | uploading | review | done
@@ -97,6 +100,29 @@ export default function ScanScreen() {
       : await ImagePicker.launchImageLibraryAsync({ quality: 0.6 });
     if (result.canceled || !result.assets?.length) return;
     await upload(result.assets[0]);
+  };
+
+  // Offline helper: capture a receipt photo and keep it in the gallery so it
+  // can be imported and scanned once a connection is available.
+  const savePhotoForLater = async () => {
+    setError('');
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      setError('Permission to use the camera was denied.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.6 });
+    if (result.canceled || !result.assets?.length) return;
+    try {
+      const saved = await saveToGallery(result.assets[0].uri);
+      if (saved) {
+        Alert.alert('Saved to gallery', 'Import this receipt from your gallery to scan it once you’re back online.');
+      } else {
+        setError('Permission to save to your gallery was denied.');
+      }
+    } catch {
+      setError('Could not save the photo to your gallery.');
+    }
   };
 
   const upload = async (asset) => {
@@ -228,6 +254,25 @@ export default function ScanScreen() {
           </Text>
           <Text style={styles.doneSub}>The receipt was split into entries.</Text>
           <Button title="Scan another" onPress={reset} icon="scan" style={styles.doneBtn} />
+          {preview ? (
+            <Button
+              title="Save photo to gallery"
+              variant="outline"
+              icon="images"
+              style={{ marginTop: 12 }}
+              onPress={async () => {
+                try {
+                  const ok = await saveToGallery(preview);
+                  Alert.alert(
+                    ok ? 'Saved to gallery' : 'Permission denied',
+                    ok ? 'A copy of this receipt is now in your gallery.' : 'Could not save to your gallery.',
+                  );
+                } catch {
+                  Alert.alert('Error', 'Could not save the photo.');
+                }
+              }}
+            />
+          ) : null}
         </View>
       ) : phase === 'review' ? (
         <KeyboardAvoidingView
@@ -351,23 +396,30 @@ export default function ScanScreen() {
         </KeyboardAvoidingView>
       ) : (
         <ScrollView contentContainerStyle={styles.idle}>
-          <View style={styles.idleIcon}>
-            <Ionicons name="scan" size={40} color={colors.accent} />
+          <View style={[styles.idleIcon, !online && styles.idleIconOffline]}>
+            <Ionicons name={online ? 'scan' : 'cloud-offline'} size={40} color={online ? colors.accent : colors.alarm} />
           </View>
-          <Text style={styles.idleTitle}>Scan a receipt</Text>
+          <Text style={styles.idleTitle}>{online ? 'Scan a receipt' : 'No internet'}</Text>
           <Text style={styles.idleText}>
-            Photograph a shop receipt, grocery bill or petrol slip. The AI reads each item so you
-            can assign it to a person. Petrol receipts go to the Car list automatically.
+            {online
+              ? 'Photograph a shop receipt, grocery bill or petrol slip. The AI reads each item so you can assign it to a person. Petrol receipts go to the Car list automatically.'
+              : 'Scanning reads the receipt with AI, which needs a connection. Snap a photo now — it’s saved to your gallery so you can import and scan it once you’re back online.'}
           </Text>
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <Button title="Take photo" icon="camera" onPress={() => pickImage(true)} />
-          <Button
-            title="Choose from gallery"
-            variant="outline"
-            icon="images"
-            onPress={() => pickImage(false)}
-            style={{ marginTop: 12 }}
-          />
+          {online ? (
+            <>
+              <Button title="Take photo" icon="camera" onPress={() => pickImage(true)} />
+              <Button
+                title="Choose from gallery"
+                variant="outline"
+                icon="images"
+                onPress={() => pickImage(false)}
+                style={{ marginTop: 12 }}
+              />
+            </>
+          ) : (
+            <Button title="Take photo to save for later" icon="camera" onPress={savePhotoForLater} />
+          )}
         </ScrollView>
       )}
 
@@ -405,6 +457,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 18,
   },
+  idleIconOffline: { backgroundColor: '#f6e3df' },
   idleTitle: {
     fontFamily: fonts.serifMediumItalic,
     fontSize: 24,

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kharcha",
     "slug": "expense-tracker",
-    "version": "1.0.6",
+    "version": "1.0.7",
     "scheme": "kharcha",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -42,6 +42,14 @@
         {
           "photosPermission": "Allow Kharcha to access your photos so you can scan receipts.",
           "cameraPermission": "Allow Kharcha to use the camera so you can scan receipts."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Kharcha to access your photos to import receipts.",
+          "savePhotosPermission": "Allow Kharcha to save receipt photos to your gallery for later import.",
+          "isAccessMediaLocationEnabled": false
         }
       ],
       "expo-font",
