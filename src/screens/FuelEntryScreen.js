@@ -1,11 +1,11 @@
 import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import api, { errorMessage } from '../api/client';
 import { Button, KLabel, Loading } from '../components/ui';
 import { colors, fonts, formatDate } from '../theme';
-import { useMoney } from '../hooks/useMoney';
+import { useCurrency, useMoney } from '../hooks/useMoney';
 import { emit, EVENTS } from '../support/events';
 
 const FUEL_TYPES = ['E92', 'E95', 'E98'];
@@ -17,6 +17,7 @@ function toServerDate(d) {
 
 export default function FuelEntryScreen({ route, navigation }) {
   const money = useMoney();
+  const ccy = useCurrency();
   const editing = route.params?.entry || null;
 
   const [carListId, setCarListId] = useState(null);
@@ -135,14 +136,18 @@ export default function FuelEntryScreen({ route, navigation }) {
   }
 
   return (
-    <ScrollView
+    <KeyboardAvoidingView
       style={styles.screen}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+    <ScrollView
       contentContainerStyle={styles.body}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
     >
       <View style={styles.row}>
         <View style={styles.col}>
-          <KLabel>Rate (Rs/L)</KLabel>
+          <KLabel>Rate ({ccy.symbol}/L)</KLabel>
           <TextInput
             value={rate}
             onChangeText={setRate}
@@ -153,7 +158,7 @@ export default function FuelEntryScreen({ route, navigation }) {
           />
         </View>
         <View style={styles.col}>
-          <KLabel>Amount paid (Rs)</KLabel>
+          <KLabel>Amount paid ({ccy.symbol})</KLabel>
           <TextInput
             value={amount}
             onChangeText={setAmount}
@@ -270,6 +275,7 @@ export default function FuelEntryScreen({ route, navigation }) {
         />
       ) : null}
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,9 @@ import { AppHeader } from '../components/Header';
 import { Avatar, Button, Card, Loading, PickerModal } from '../components/ui';
 import { colors, fonts, personColor } from '../theme';
 import { useMoney } from '../hooks/useMoney';
+import { useAuth } from '../context/AuthContext';
+import { CURRENCIES, currencyMeta, money as fmtMoney } from '../support/currency';
+import { fetchRate } from '../support/fx';
 import { emit, EVENTS } from '../support/events';
 
 const TYPE_LABEL = {
@@ -19,6 +22,9 @@ const TYPE_LABEL = {
 
 export default function ScanScreen() {
   const money = useMoney();
+  const { user } = useAuth();
+  const baseCcy = user?.account?.currency || 'USD';
+
   const [phase, setPhase] = useState('idle'); // idle | uploading | review | done
   const [lists, setLists] = useState([]);
   const [scan, setScan] = useState(null);
@@ -29,11 +35,43 @@ export default function ScanScreen() {
   const [savedCount, setSavedCount] = useState(0);
   const [error, setError] = useState('');
 
+  // Receipt currency + conversion. Defaults to the household's base currency
+  // (rate 1, no conversion). When the receipt is in another currency we fetch
+  // a live rate the user can override, and convert amounts on save so the
+  // ledger always stores base-currency values.
+  const [receiptCcy, setReceiptCcy] = useState(baseCcy);
+  const [rate, setRate] = useState('1');
+  const [rateBusy, setRateBusy] = useState(false);
+  const [ccyPicker, setCcyPicker] = useState(false);
+
+  const converting = receiptCcy !== baseCcy;
+  const rateNum = Number(rate) || 0;
+
   useEffect(() => {
     api.get('/lists').then((res) => setLists(res.data.data || [])).catch(() => {});
   }, []);
 
   const listById = (id) => lists.find((l) => l.id === id);
+
+  const changeCurrency = async (code) => {
+    setReceiptCcy(code);
+    setError('');
+    if (code === baseCcy) {
+      setRate('1');
+      return;
+    }
+    setRateBusy(true);
+    try {
+      const r = await fetchRate(code, baseCcy);
+      setRate(String(Number(r.toFixed(6))));
+    } catch {
+      // Network/lookup failed — leave the rate for the user to type in.
+      setRate('');
+      setError(`Couldn't fetch the ${code}→${baseCcy} rate. Enter it manually below.`);
+    } finally {
+      setRateBusy(false);
+    }
+  };
 
   const reset = () => {
     setPhase('idle');
@@ -41,6 +79,8 @@ export default function ScanScreen() {
     setItems([]);
     setPreview(null);
     setError('');
+    setReceiptCcy(baseCcy);
+    setRate('1');
   };
 
   const pickImage = async (fromCamera) => {
@@ -135,10 +175,17 @@ export default function ScanScreen() {
       if (!it.item_name.trim()) return setError('Every item needs a name.');
       if (!it.amount || Number.isNaN(Number(it.amount))) return setError('Every item needs an amount.');
     }
+    if (converting && (!rateNum || rateNum <= 0)) {
+      return setError(`Enter a valid ${receiptCcy} → ${baseCcy} rate.`);
+    }
     setConfirming(true);
     setError('');
     try {
+      // Send the ORIGINAL (receipt-currency) amounts plus the currency + rate;
+      // the server converts to the base currency and stores both.
       const res = await api.post(`/receipts/${scan.receipt.id}/confirm`, {
+        currency: receiptCcy,
+        fx_rate: converting ? rateNum : 1,
         items: items.map((it) => ({
           spending_list_id: it.spending_list_id,
           category_id: it.category_id,
@@ -183,7 +230,15 @@ export default function ScanScreen() {
           <Button title="Scan another" onPress={reset} icon="scan" style={styles.doneBtn} />
         </View>
       ) : phase === 'review' ? (
-        <ScrollView contentContainerStyle={styles.body}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+        <ScrollView
+          contentContainerStyle={styles.body}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
           <Card style={styles.receiptCard}>
             <View style={styles.receiptRow}>
               {preview ? <Image source={{ uri: preview }} style={styles.thumb} /> : null}
@@ -191,10 +246,38 @@ export default function ScanScreen() {
                 <Text style={styles.merchant}>{scan.receipt.merchant || 'Unknown shop'}</Text>
                 <Text style={styles.receiptMeta}>
                   {TYPE_LABEL[scan.receipt.receipt_type] || 'Receipt'}
-                  {scan.receipt.total ? ` · ${money(scan.receipt.total)}` : ''}
+                  {scan.receipt.total ? ` · ${fmtMoney(scan.receipt.total, receiptCcy)}` : ''}
                 </Text>
               </View>
             </View>
+
+            <View style={styles.ccyRow}>
+              <Text style={styles.ccyLabel}>Receipt currency</Text>
+              <Pressable style={styles.ccyChip} onPress={() => setCcyPicker(true)} hitSlop={6}>
+                <Text style={styles.ccyChipText}>{receiptCcy}</Text>
+                <Ionicons name="chevron-down" size={14} color={colors.inkSoft} />
+              </Pressable>
+            </View>
+
+            {converting ? (
+              <View style={styles.rateRow}>
+                <Text style={styles.rateLead}>1 {receiptCcy} =</Text>
+                {rateBusy ? (
+                  <Text style={styles.rateBusy}>fetching…</Text>
+                ) : (
+                  <TextInput
+                    value={rate}
+                    onChangeText={setRate}
+                    style={styles.rateInput}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    placeholderTextColor={colors.inkSoft}
+                  />
+                )}
+                <Text style={styles.rateLead}>{baseCcy}</Text>
+              </View>
+            ) : null}
+
             {scan.is_fuel ? (
               <View style={styles.fuelBanner}>
                 <Ionicons name="car-sport" size={15} color={colors.accent} />
@@ -225,7 +308,7 @@ export default function ScanScreen() {
                 />
                 <View style={styles.itemBottom}>
                   <View style={styles.amountWrap}>
-                    <Text style={styles.rs}>Rs</Text>
+                    <Text style={styles.rs}>{currencyMeta(receiptCcy).symbol}</Text>
                     <TextInput
                       value={it.amount}
                       onChangeText={(v) => updateItem(index, 'amount', v)}
@@ -247,10 +330,25 @@ export default function ScanScreen() {
             );
           })}
 
+          {converting && rateNum > 0 ? (
+            <View style={styles.convertBanner}>
+              <Ionicons name="swap-horizontal" size={15} color={colors.accent} />
+              <Text style={styles.convertText}>
+                Saving as{' '}
+                {fmtMoney(
+                  items.reduce((s, it) => s + (Number(it.amount) || 0), 0) * rateNum,
+                  baseCcy,
+                )}{' '}
+                in {baseCcy}
+              </Text>
+            </View>
+          ) : null}
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Button title="Save all expenses" onPress={confirm} loading={confirming} icon="checkmark" />
           <Button title="Cancel" variant="outline" onPress={reset} style={{ marginTop: 10 }} />
         </ScrollView>
+        </KeyboardAvoidingView>
       ) : (
         <ScrollView contentContainerStyle={styles.idle}>
           <View style={styles.idleIcon}>
@@ -280,15 +378,23 @@ export default function ScanScreen() {
         onSelect={(listId) => setItemList(picker, listId)}
         onClose={() => setPicker(null)}
       />
+
+      <PickerModal
+        visible={ccyPicker}
+        title="What currency is this receipt in?"
+        options={CURRENCIES.map((c) => ({ value: c.code, label: `${c.code} · ${c.name}` }))}
+        onSelect={changeCurrency}
+        onClose={() => setCcyPicker(false)}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  body: { padding: 16, paddingBottom: 40 },
+  body: { padding: 16, paddingBottom: 110 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  idle: { padding: 24 },
+  idle: { padding: 24, paddingBottom: 110 },
   idleIcon: {
     width: 86,
     height: 86,
@@ -330,6 +436,61 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   fuelBannerText: { fontSize: 12, color: colors.accent, fontFamily: fonts.sans, flex: 1 },
+
+  ccyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.rule,
+  },
+  ccyLabel: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 1.3,
+    textTransform: 'uppercase',
+    color: colors.inkSoft,
+  },
+  ccyChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.rule,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  ccyChipText: { fontFamily: fonts.monoMedium, fontSize: 13, letterSpacing: 0.5, color: colors.ink },
+  rateRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+  rateLead: { fontFamily: fonts.sans, fontSize: 13, color: colors.inkSoft },
+  rateBusy: { fontFamily: fonts.serifItalic, fontSize: 13, color: colors.inkSoft },
+  rateInput: {
+    fontFamily: fonts.monoMedium,
+    fontSize: 15,
+    color: colors.ink,
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.rule,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 96,
+    textAlign: 'center',
+  },
+  convertBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#fbeee0',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  convertText: { fontSize: 13, color: colors.accent, fontFamily: fonts.sansMedium, flex: 1 },
   assignRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

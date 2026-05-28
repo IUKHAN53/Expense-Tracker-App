@@ -1,6 +1,16 @@
 import { useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { money as fmt, moneyShort as fmtShort } from '../support/currency';
+import { currencyMeta, money as fmt, moneyShort as fmtShort } from '../support/currency';
+
+/**
+ * The current account's currency metadata ({ code, name, symbol, locale }).
+ * Use `.symbol` for inline labels like "Rate (Rs/L)" so they track the user's
+ * chosen currency instead of hardcoding one. Falls back to USD before login.
+ */
+export function useCurrency() {
+  const { user } = useAuth();
+  return currencyMeta(user?.account?.currency || 'USD');
+}
 
 /**
  * Returns a `(value) => string` formatter bound to the current user's

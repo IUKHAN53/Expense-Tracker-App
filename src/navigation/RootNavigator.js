@@ -87,7 +87,11 @@ export default function RootNavigator() {
       ) : requiresVerification ? (
         <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} options={{ headerShown: false }} />
       ) : requiresCurrency ? (
-        <Stack.Screen name="CurrencyPicker" component={CurrencyPickerScreen} options={{ headerShown: false }} />
+        // Distinct name from the in-app "CurrencyPicker" below. If both stacks
+        // shared a name, React Navigation would keep the user on the currency
+        // screen when requiresCurrency flips false (the focused route name still
+        // exists), instead of resetting to Tabs/Home — the "stuck loading" bug.
+        <Stack.Screen name="CurrencySetup" component={CurrencyPickerScreen} options={{ headerShown: false }} />
       ) : (
         <>
           <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />

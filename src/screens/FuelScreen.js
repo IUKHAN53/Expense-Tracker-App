@@ -7,7 +7,7 @@ import api, { errorMessage } from '../api/client';
 import { AppHeader } from '../components/Header';
 import { Card, EmptyState, Loading } from '../components/ui';
 import { colors, fonts, formatDate } from '../theme';
-import { useMoney } from '../hooks/useMoney';
+import { useCurrency, useMoney } from '../hooks/useMoney';
 import { on, EVENTS } from '../support/events';
 
 /** "2026.05.10" — matches the CarExpenses layout. */
@@ -170,6 +170,8 @@ function StatTile({ label, value, sub }) {
  *   right — odometer (+km) / total Rs / litres / Full|Partial
  */
 function FuelCard({ record, onPress }) {
+  const money = useMoney();
+  const ccy = useCurrency();
   const dim = (v) => (v == null ? '—' : v);
   return (
     <Pressable onPress={onPress}>
@@ -186,11 +188,11 @@ function FuelCard({ record, onPress }) {
               <Text style={styles.fuelTypeText}>{record.fuel_type || 'E92'}</Text>
               <Text style={styles.recordMeta}>
                 {' '}
-                {record.rate != null ? `${record.rate.toFixed(2)} Rs/L` : ''}
+                {record.rate != null ? `${record.rate.toFixed(2)} ${ccy.symbol}/L` : ''}
               </Text>
             </View>
             <Text style={styles.recordMeta}>
-              {record.rs_per_km != null ? `${record.rs_per_km.toFixed(2)} Rs/km` : '—'}
+              {record.rs_per_km != null ? `${record.rs_per_km.toFixed(2)} ${ccy.symbol}/km` : '—'}
             </Text>
             <Text style={styles.recordKmpl}>
               {record.km_per_liter != null ? `${record.km_per_liter.toFixed(2)} km/L` : '—'}

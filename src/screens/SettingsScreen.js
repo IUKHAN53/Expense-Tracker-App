@@ -113,7 +113,7 @@ export default function SettingsScreen() {
         </Pressable>
 
         <InfoRow icon="server-outline" label="Server" value={API_BASE_URL} />
-        <InfoRow icon="cube-outline" label="App version" value="1.0.0" />
+        <InfoRow icon="cube-outline" label="App version" value="1.0.6" />
 
         <Button title="Log out" variant="outline" icon="log-out-outline" onPress={logout} />
 
@@ -204,7 +204,9 @@ function InfoRow({ icon, label, value }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  body: { padding: 16 },
+  // paddingBottom clears the bottom tab bar so the log-out / danger-zone rows
+  // at the end of the menu aren't hidden behind it.
+  body: { padding: 16, paddingBottom: 110 },
   profile: { alignItems: 'center', paddingVertical: 24, marginBottom: 12 },
   name: {
     fontFamily: fonts.serifMedium,

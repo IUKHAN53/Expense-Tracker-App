@@ -2,7 +2,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar, CatChip } from './ui';
 import { categoryStyle, colors, fonts } from '../theme';
-import { useMoney, useMoneyShort } from '../hooks/useMoney';
+import { useCurrency, useMoney, useMoneyShort } from '../hooks/useMoney';
+import { money as fmtMoney } from '../support/currency';
 
 function shortDate(iso) {
   if (!iso) return '';
@@ -14,8 +15,15 @@ function shortDate(iso) {
 /** A single expense row — category chip, name + meta line, amount. */
 export function ExpenseItem({ entry, onPress, showList = true }) {
   const money = useMoney();
+  const ccy = useCurrency();
   const catName = entry.category ? entry.category.name : null;
   const person = entry.spending_list;
+  // Show the original foreign cost in brackets when the entry was bought in a
+  // different currency — it stays fixed at what was actually paid.
+  const showOriginal =
+    entry.original_amount != null &&
+    entry.original_currency &&
+    entry.original_currency !== ccy.code;
   return (
     <Pressable onPress={onPress} style={styles.row}>
       <CatChip name={catName} size={36} />
@@ -44,7 +52,14 @@ export function ExpenseItem({ entry, onPress, showList = true }) {
           ) : null}
         </View>
       </View>
-      <Text style={styles.amount}>{money(entry.amount)}</Text>
+      <View style={styles.amountCol}>
+        <Text style={styles.amount}>{money(entry.amount)}</Text>
+        {showOriginal ? (
+          <Text style={styles.origAmount}>
+            ({fmtMoney(entry.original_amount, entry.original_currency)})
+          </Text>
+        ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -98,10 +113,17 @@ const styles = StyleSheet.create({
   meta: { flexDirection: 'row', alignItems: 'center', marginTop: 3, gap: 5, flexWrap: 'nowrap' },
   metaText: { fontSize: 11.5, color: colors.inkSoft, fontFamily: fonts.sans },
   dot: { fontSize: 11, color: colors.inkSoft },
+  amountCol: { alignItems: 'flex-end' },
   amount: {
     fontFamily: fonts.monoMedium,
     fontSize: 14,
     color: colors.ink,
+  },
+  origAmount: {
+    fontFamily: fonts.mono,
+    fontSize: 10.5,
+    color: colors.inkSoft,
+    marginTop: 2,
   },
   splitTag: {
     fontFamily: fonts.monoMedium,
