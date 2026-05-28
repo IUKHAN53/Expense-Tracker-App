@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Ionicons } from '@expo/vector-icons';
 import api, { API_BASE_URL, errorMessage } from '../api/client';
+import { cachedGet } from '../support/cachedApi';
 import { AppHeader } from '../components/Header';
 import { Avatar, Button, Card, Loading, PickerModal } from '../components/ui';
 import { colors, fonts, personColor } from '../theme';
@@ -50,9 +52,23 @@ export default function ScanScreen() {
   const converting = receiptCcy !== baseCcy;
   const rateNum = Number(rate) || 0;
 
-  useEffect(() => {
-    api.get('/lists').then((res) => setLists(res.data.data || [])).catch(() => {});
+  // Load the spending lists (for the "Assign to" picker). Cached + refetched
+  // on every focus so the picker is never silently empty after a transient
+  // failure or when returning to the tab.
+  const loadLists = useCallback(async () => {
+    try {
+      const data = await cachedGet('lists', '/lists');
+      if (Array.isArray(data?.data)) setLists(data.data);
+    } catch {
+      // keep whatever we had; the picker shows a hint when empty
+    }
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadLists();
+    }, [loadLists]),
+  );
 
   const listById = (id) => lists.find((l) => l.id === id);
 
@@ -277,7 +293,7 @@ export default function ScanScreen() {
       ) : phase === 'review' ? (
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
         >
         <ScrollView
           contentContainerStyle={styles.body}

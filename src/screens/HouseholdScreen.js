@@ -124,7 +124,7 @@ export default function HouseholdScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior="padding"
     >
       <AppHeader title="Household" />
       <ScrollView

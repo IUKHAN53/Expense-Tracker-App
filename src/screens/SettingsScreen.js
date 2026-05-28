@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import { useOnline } from '../context/ConnectivityContext';
 import { AppHeader } from '../components/Header';
 import { Avatar, Button, Card, TextField } from '../components/ui';
 import { API_BASE_URL, errorMessage } from '../api/client';
@@ -20,6 +21,7 @@ import { colors, fonts } from '../theme';
 export default function SettingsScreen() {
   const navigation = useNavigation();
   const { user, logout, deleteAccount } = useAuth();
+  const { pending, openSync } = useOnline();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmWord, setConfirmWord] = useState('');
@@ -112,8 +114,23 @@ export default function SettingsScreen() {
           <Ionicons name="chevron-forward" size={18} color={colors.inkSoft} />
         </Pressable>
 
+        <Pressable
+          onPress={openSync}
+          style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardActive]}
+        >
+          <Ionicons name="sync-outline" size={20} color={colors.ink} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.linkTitle}>Sync queue</Text>
+            <Text style={styles.linkSub}>
+              {pending ? `${pending} change${pending === 1 ? '' : 's'} waiting · tap to review` : 'All changes synced'}
+            </Text>
+          </View>
+          {pending ? <View style={styles.badge}><Text style={styles.badgeText}>{pending}</Text></View> : null}
+          <Ionicons name="chevron-forward" size={18} color={colors.inkSoft} />
+        </Pressable>
+
         <InfoRow icon="server-outline" label="Server" value={API_BASE_URL} />
-        <InfoRow icon="cube-outline" label="App version" value="1.0.7" />
+        <InfoRow icon="cube-outline" label="App version" value="1.0.8" />
 
         <Button title="Log out" variant="outline" icon="log-out-outline" onPress={logout} />
 
@@ -144,7 +161,7 @@ export default function SettingsScreen() {
       >
         <KeyboardAvoidingView
           style={styles.modalBackdrop}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={closeConfirm} />
           <View style={styles.modalSheet}>
@@ -227,6 +244,11 @@ const styles = StyleSheet.create({
   linkCardActive: { backgroundColor: 'rgba(201,98,31,0.06)' },
   linkTitle: { fontFamily: fonts.sansMedium, fontSize: 15, color: colors.ink },
   linkSub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.inkSoft, marginTop: 2 },
+  badge: {
+    backgroundColor: colors.accent, minWidth: 22, borderRadius: 11,
+    paddingHorizontal: 7, paddingVertical: 2, alignItems: 'center', justifyContent: 'center',
+  },
+  badgeText: { fontFamily: fonts.monoMedium, fontSize: 11, color: '#fff' },
 
   dangerZone: { marginTop: 40 },
   dangerLabel: {

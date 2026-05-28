@@ -163,7 +163,7 @@ export default function FuelEntryScreen({ route, navigation }) {
   return (
     <KeyboardAvoidingView
       style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior="padding"
     >
     <ScrollView
       contentContainerStyle={styles.body}

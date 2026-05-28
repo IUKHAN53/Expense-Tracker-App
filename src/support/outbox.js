@@ -27,6 +27,23 @@ export async function count() {
   return (await read()).length;
 }
 
+/** The queued items (for the pending-sync list UI). */
+export async function list() {
+  return read();
+}
+
+/** Remove a single queued item by id. Returns the new length. */
+export async function remove(id) {
+  const queue = (await read()).filter((op) => op.id !== id);
+  await write(queue);
+  return queue.length;
+}
+
+/** Drop every queued item. */
+export async function clear() {
+  await write([]);
+}
+
 /** Queue a POST /entries payload for later sync. */
 export async function enqueueEntry(payload) {
   const queue = await read();

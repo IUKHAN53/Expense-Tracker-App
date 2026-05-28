@@ -3,8 +3,15 @@ import { AppState } from 'react-native';
 import { getOnline } from '../support/net';
 import { count as outboxCount, flush as flushOutbox } from '../support/outbox';
 import { emit, EVENTS } from '../support/events';
+import { SyncSheet } from '../components/SyncSheet';
 
-const ConnectivityContext = createContext({ online: true, pending: 0, syncNow: async () => {} });
+const ConnectivityContext = createContext({
+  online: true,
+  pending: 0,
+  syncNow: async () => {},
+  refreshPending: async () => {},
+  openSync: () => {},
+});
 
 /**
  * App-wide connectivity state. Polls reachability (every 5s + whenever the app
@@ -14,6 +21,7 @@ const ConnectivityContext = createContext({ online: true, pending: 0, syncNow: a
 export function ConnectivityProvider({ children }) {
   const [online, setOnline] = useState(true);
   const [pending, setPending] = useState(0);
+  const [syncOpen, setSyncOpen] = useState(false);
   const wasOnline = useRef(true);
 
   const refreshPending = async () => setPending(await outboxCount());
@@ -49,9 +57,19 @@ export function ConnectivityProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const openSync = () => setSyncOpen(true);
+  const closeSync = () => setSyncOpen(false);
+
   return (
-    <ConnectivityContext.Provider value={{ online, pending, syncNow, refreshPending }}>
+    <ConnectivityContext.Provider value={{ online, pending, syncNow, refreshPending, openSync }}>
       {children}
+      <SyncSheet
+        visible={syncOpen}
+        onClose={closeSync}
+        online={online}
+        onSyncNow={syncNow}
+        onChanged={refreshPending}
+      />
     </ConnectivityContext.Provider>
   );
 }

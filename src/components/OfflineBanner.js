@@ -12,7 +12,7 @@ import { colors, fonts } from '../theme';
  */
 export function OfflineBanner() {
   const insets = useSafeAreaInsets();
-  const { online, pending, syncNow } = useOnline();
+  const { online, pending, openSync } = useOnline();
 
   if (online && pending === 0) return null;
 
@@ -20,11 +20,11 @@ export function OfflineBanner() {
   const bg = offline ? colors.alarm : colors.accent;
   const label = offline
     ? `No internet${pending ? ` · ${pending} change${pending === 1 ? '' : 's'} waiting` : ''}`
-    : `Syncing ${pending} change${pending === 1 ? '' : 's'}…`;
+    : `${pending} change${pending === 1 ? '' : 's'} to sync · tap to review`;
 
   return (
     <Pressable
-      onPress={() => !offline && syncNow()}
+      onPress={openSync}
       style={[styles.bar, { backgroundColor: bg, paddingTop: insets.top + 6 }]}
     >
       <Ionicons name={offline ? 'cloud-offline' : 'cloud-upload'} size={14} color="#fff" />
