@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
@@ -69,6 +69,15 @@ export default function ScanScreen() {
       loadLists();
     }, [loadLists]),
   );
+
+  // Also reload when the connection comes back while we're already on this
+  // screen — focus doesn't change in that case, so without this the picker
+  // would stay empty after going offline -> online.
+  const wasOnline = useRef(online);
+  useEffect(() => {
+    if (online && !wasOnline.current) loadLists();
+    wasOnline.current = online;
+  }, [online, loadLists]);
 
   const listById = (id) => lists.find((l) => l.id === id);
 
