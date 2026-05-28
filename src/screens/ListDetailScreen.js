@@ -2,12 +2,13 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } fro
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import api, { errorMessage } from '../api/client';
+import { errorMessage } from '../api/client';
 import { Avatar, Card, EmptyState, Loading, SectionHeader,  } from '../components/ui';
 import { CategoryBreakdown, ExpenseItem } from '../components/bits';
 import { colors, currentMonthKey, fonts, monthLabel } from '../theme';
 import { useMoney } from '../hooks/useMoney';
 import { on, EVENTS } from '../support/events';
+import { cachedGet } from '../support/cachedApi';
 
 export default function ListDetailScreen({ route, navigation }) {
   const money = useMoney();
@@ -28,13 +29,14 @@ export default function ListDetailScreen({ route, navigation }) {
     try {
       setError('');
       const month = currentMonthKey();
+      // Cached per list so the detail view still opens offline.
       const [e, s] = await Promise.all([
-        api.get('/entries', { params: { spending_list_id: list.id, month } }),
-        api.get('/summary', { params: { month } }),
+        cachedGet(`list-entries:${list.id}`, '/entries', { params: { spending_list_id: list.id, month } }),
+        cachedGet('summary', '/summary', { params: { month } }),
       ]);
-      setEntries(e.data.data || []);
-      setTotal(e.data.total || 0);
-      setGrand(s.data.grand_total || 0);
+      setEntries(e.data || []);
+      setTotal(e.total || 0);
+      setGrand(s.grand_total || 0);
     } catch (err) {
       setError(errorMessage(err));
     } finally {

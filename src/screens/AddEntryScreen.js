@@ -8,6 +8,7 @@ import { useCurrency, useMoney } from '../hooks/useMoney';
 import { useOnline } from '../context/ConnectivityContext';
 import { enqueueEntry } from '../support/outbox';
 import { isNetworkError } from '../support/net';
+import { cachedGet } from '../support/cachedApi';
 import { emit, EVENTS } from '../support/events';
 
 function toServerDate(d) {
@@ -61,12 +62,13 @@ export default function AddEntryScreen({ route, navigation }) {
   useEffect(() => {
     (async () => {
       try {
-        const [listsRes, catsRes] = await Promise.all([
-          api.get('/lists'),
-          api.get('/categories'),
+        // Cached so the list/category pickers are available offline.
+        const [listsData, catsData] = await Promise.all([
+          cachedGet('lists', '/lists'),
+          cachedGet('categories', '/categories'),
         ]);
-        setLists(listsRes.data.data || []);
-        setCategories(catsRes.data.data || []);
+        setLists(listsData.data || []);
+        setCategories(catsData.data || []);
       } catch (e) {
         setError(errorMessage(e));
       } finally {

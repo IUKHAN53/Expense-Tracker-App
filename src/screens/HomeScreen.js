@@ -10,6 +10,7 @@ import { colors, currentMonthKey, fonts, monthLabelShort } from '../theme';
 import { useMoney } from '../hooks/useMoney';
 import { on, EVENTS } from '../support/events';
 import { getCache, setCache } from '../support/cache';
+import { warmCache } from '../support/cachedApi';
 
 export default function HomeScreen({ navigation }) {
   const money = useMoney();
@@ -31,6 +32,9 @@ export default function HomeScreen({ navigation }) {
       setSummary(s.data);
       setEntries(e.data.data || []);
       setCache('home', { summary: s.data, entries: e.data.data || [] });
+      // Warm the pickers so adding an expense works even fully offline.
+      warmCache('lists', '/lists');
+      warmCache('categories', '/categories');
     } catch (err) {
       // Offline / server unreachable: fall back to the last cached view.
       // The global offline banner already signals the connection state.

@@ -3,12 +3,13 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'r
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
-import api, { errorMessage } from '../api/client';
+import { errorMessage } from '../api/client';
 import { AppHeader } from '../components/Header';
 import { Card, EmptyState, Loading } from '../components/ui';
 import { colors, fonts, formatDate } from '../theme';
 import { useCurrency, useMoney } from '../hooks/useMoney';
 import { on, EVENTS } from '../support/events';
+import { cachedGet } from '../support/cachedApi';
 
 /** "2026.05.10" — matches the CarExpenses layout. */
 function ymdDot(iso) {
@@ -33,8 +34,8 @@ export default function FuelScreen({ navigation }) {
   const load = useCallback(async () => {
     try {
       setError('');
-      const res = await api.get('/fuel');
-      setData(res.data);
+      // Falls back to the last cached fuel data when offline.
+      setData(await cachedGet('fuel', '/fuel'));
     } catch (e) {
       setError(errorMessage(e));
     } finally {

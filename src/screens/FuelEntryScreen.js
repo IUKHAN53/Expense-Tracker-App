@@ -9,6 +9,7 @@ import { useCurrency, useMoney } from '../hooks/useMoney';
 import { useOnline } from '../context/ConnectivityContext';
 import { enqueueEntry } from '../support/outbox';
 import { isNetworkError } from '../support/net';
+import { cachedGet } from '../support/cachedApi';
 import { emit, EVENTS } from '../support/events';
 
 const FUEL_TYPES = ['E92', 'E95', 'E98'];
@@ -52,12 +53,13 @@ export default function FuelEntryScreen({ route, navigation }) {
   useEffect(() => {
     (async () => {
       try {
-        const [listsRes, catsRes] = await Promise.all([
-          api.get('/lists'),
-          api.get('/categories'),
+        // Cached so a refill can still be logged (offline) without a fetch.
+        const [listsData, catsData] = await Promise.all([
+          cachedGet('lists', '/lists'),
+          cachedGet('categories', '/categories'),
         ]);
-        const car = (listsRes.data.data || []).find((l) => l.type === 'vehicle');
-        const fuel = (catsRes.data.data || []).find((c) => /^fuel$/i.test(c.name));
+        const car = (listsData.data || []).find((l) => l.type === 'vehicle');
+        const fuel = (catsData.data || []).find((c) => /^fuel$/i.test(c.name));
         if (!car) setError('No Car list found. Create one in the admin panel.');
         setCarListId(car?.id || null);
         setFuelCategoryId(fuel?.id || null);
