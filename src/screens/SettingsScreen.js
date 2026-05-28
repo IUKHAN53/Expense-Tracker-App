@@ -130,7 +130,7 @@ export default function SettingsScreen() {
         </Pressable>
 
         <InfoRow icon="server-outline" label="Server" value={API_BASE_URL} />
-        <InfoRow icon="cube-outline" label="App version" value="1.0.9" />
+        <InfoRow icon="cube-outline" label="App version" value="1.0.10" />
 
         <Button title="Log out" variant="outline" icon="log-out-outline" onPress={logout} />
 
