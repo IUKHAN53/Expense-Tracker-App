@@ -6,7 +6,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { migrate } from '../src/db/schema.js';
 import { createRepo } from '../src/db/repo.js';
-import { buildFuel } from '../src/db/fuel.js';
+import { buildFuel, previewFill } from '../src/db/fuel.js';
 import { monthRange, toIso } from '../src/db/month.js';
 import {
   decryptBackup, encryptBackup, fromBase64, readBackupFile, toBase64, utf8Decode, utf8Encode,
@@ -123,6 +123,28 @@ assert.equal(f.records[2].is_full_tank, true);
 assert.equal(f.stats.month_spent, 9100);
 assert.equal(f.stats.avg_km_per_liter, Math.round(((475 / 32.5) + (417 / 30)) / 2 * 100) / 100);
 assert.deepEqual(buildFuel([]).records, []);
+
+// Full-to-full km/L: a top-up's litres roll into the next full fill.
+const fills = buildFuel([
+  { id: 1, fuel_liters: 30, odometer: 1000, amount: 9000, is_full_tank: 1, purchased_at: '2026-10-01T00:00:00.000Z' },
+  { id: 2, fuel_liters: 10, odometer: 1200, amount: 3000, is_full_tank: 0, purchased_at: '2026-10-05T00:00:00.000Z' },
+  { id: 3, fuel_liters: 20, odometer: 1500, amount: 6000, is_full_tank: 1, purchased_at: '2026-10-09T00:00:00.000Z' },
+], new Date(2026, 9, 15)).records;
+assert.equal(fills[0].km_per_liter, 16.67); // (1500-1000) / (10+20)
+assert.equal(fills[0].rs_per_km, 18); // (3000+6000) / 500
+assert.equal(fills[1].km_per_liter, null); // top-up: no km/L of its own
+assert.equal(fills[1].km_since_last, 200);
+assert.equal(fills[1].is_full_tank, false);
+const draft = { date: '2026-10-20T00:00:00.000Z', odometer: 1800, liters: 25, amount: 7500, full: true };
+assert.deepEqual(
+  (({ kmSince, kmpl, perKm, lastOdometer }) => ({ kmSince, kmpl, perKm, lastOdometer }))(previewFill(fills, draft)),
+  { kmSince: 300, kmpl: 12, perKm: 25, lastOdometer: 1500 },
+);
+assert.equal(previewFill(fills, { ...draft, full: false }).kmpl, null);
+assert.equal(previewFill(fills, { ...draft, full: false }).kmSince, 300);
+assert.equal(previewFill(fills, { ...draft, odometer: 1400 }).lowerThanLast, true);
+// Editing the middle top-up previews against fills before it, not itself.
+assert.equal(previewFill(fills, { id: 2, date: '2026-10-05T00:00:00.000Z', odometer: 1200, liters: 10, full: true }).kmpl, 20);
 
 // Settings
 await db.settings.set('currency', 'PKR');

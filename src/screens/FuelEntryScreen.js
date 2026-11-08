@@ -1,48 +1,59 @@
-import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getDb } from '../db';
+import { previewFill } from '../db/fuel';
 import { errorMessage } from '../support/errors';
-import { Button, KLabel, Loading } from '../components/ui';
-import { colors, fonts, formatDate } from '../theme';
-import { useCurrency, useMoney } from '../hooks/useMoney';
+import { grouped } from '../support/currency';
 import { emit, EVENTS } from '../support/events';
+import { colors, fonts, type } from '../theme';
+import { useCurrency } from '../hooks/useMoney';
+import { Caps, dayLabel } from '../components/kit';
+import { Loading } from '../components/ui';
 import { useToast } from '../components/Toast';
 
-const FUEL_TYPES = ['E92', 'E95', 'E98'];
+const BASE_TYPES = ['E92', 'E95', 'E98'];
+const KEYS = ['amount', 'rate', 'liters'];
+const r2 = (n) => Math.round(n * 100) / 100;
+const clean = (t) => t.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
 
-function toServerDate(d) {
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`;
-}
-
+/**
+ * Log or edit a refill. Built for speed: rate and fuel type are prefilled from
+ * the last refill, any two of amount / rate / litres give the third, and the
+ * km/L for this fill shows live as the odometer is typed.
+ */
 export default function FuelEntryScreen({ route, navigation }) {
-  const money = useMoney();
+  const insets = useSafeAreaInsets();
   const ccy = useCurrency();
   const toast = useToast();
   const editing = route.params?.entry || null;
+  const amountRef = useRef(null);
+  const odoRef = useRef(null);
 
+  const [ready, setReady] = useState(false);
   const [carListId, setCarListId] = useState(null);
   const [fuelCategoryId, setFuelCategoryId] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [records, setRecords] = useState([]);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const [rate, setRate] = useState(editing?.rate != null ? String(editing.rate) : '');
-  const [amount, setAmount] = useState(editing?.amount != null ? String(editing.amount) : '');
-  const [odometer, setOdometer] = useState(
-    editing?.odometer != null ? String(editing.odometer) : '',
-  );
+  const [vals, setVals] = useState({
+    amount: editing?.amount != null ? String(editing.amount) : '',
+    rate: editing?.rate != null ? String(editing.rate) : '',
+    liters: '',
+  });
+  // The last two fields the user typed in; the remaining one is calculated.
+  const [sources, setSources] = useState(['amount', 'rate']);
+  const [odometer, setOdometer] = useState(editing?.odometer != null ? String(editing.odometer) : '');
   const [fuelType, setFuelType] = useState(editing?.fuel_type || 'E92');
-  const [isFullTank, setIsFullTank] = useState(
-    editing ? !!editing.is_full_tank : true,
-  );
+  const [full, setFull] = useState(editing ? editing.is_full_tank !== false : true);
   const [notes, setNotes] = useState(editing?.notes || '');
-  const [purchasedAt, setPurchasedAt] = useState(
-    editing?.date ? new Date(editing.date) : new Date(),
-  );
-  const [dateMode, setDateMode] = useState(null);
+  const [date, setDate] = useState(editing?.date ? new Date(editing.date) : new Date());
+  const [picking, setPicking] = useState(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: editing ? 'Edit refill' : 'New refill' });
@@ -52,62 +63,105 @@ export default function FuelEntryScreen({ route, navigation }) {
     (async () => {
       try {
         const db = await getDb();
-        const [listsData, catsData] = await Promise.all([db.lists.all(), db.categories.all()]);
-        const car = listsData.data.find((l) => l.type === 'vehicle');
-        const fuel = catsData.data.find((c) => /^fuel$/i.test(c.name));
+        const [l, c, f] = await Promise.all([db.lists.all(), db.categories.all(), db.fuel()]);
+        const car = l.data.find((x) => x.type === 'vehicle');
         if (!car) setError('No Car list yet. Add one (type: Vehicle) in Settings → Lists.');
-        setCarListId(car?.id || null);
-        setFuelCategoryId(fuel?.id || null);
+        setCarListId(car?.id ?? null);
+        setFuelCategoryId(c.data.find((x) => /^fuel$/i.test(x.name))?.id ?? null);
+        setRecords(f.records);
+        // New refill: start from the last one's rate and fuel type.
+        const last = f.records[0];
+        if (!editing && last) {
+          if (last.rate) setVals((v) => ({ ...v, rate: String(last.rate) }));
+          if (last.fuel_type) setFuelType(last.fuel_type);
+        }
       } catch (e) {
         setError(errorMessage(e));
       } finally {
-        setLoading(false);
+        setReady(true);
       }
     })();
-  }, []);
+  }, [editing]);
 
-  const liters = useMemo(() => {
-    const r = Number(rate);
-    const a = Number(amount);
-    if (!r || r <= 0 || !a || a <= 0) return 0;
-    return a / r;
-  }, [rate, amount]);
+  const derived = KEYS.find((k) => !sources.includes(k));
+  const n = (k) => Number(vals[k]) || 0;
+  const amount = derived === 'amount' ? r2(n('rate') * n('liters')) : n('amount');
+  const rate = derived === 'rate' ? (n('liters') ? r2(n('amount') / n('liters')) : 0) : n('rate');
+  const liters = derived === 'liters' ? (n('rate') ? r2(n('amount') / n('rate')) : 0) : n('liters');
+  const shown = {
+    amount: derived === 'amount' ? (amount ? String(Math.round(amount)) : '') : vals.amount,
+    rate: derived === 'rate' ? (rate ? String(rate) : '') : vals.rate,
+    liters: derived === 'liters' ? (liters ? String(liters) : '') : vals.liters,
+  };
 
-  const save = async () => {
-    if (!carListId) return setError('Car list not available.');
-    const r = Number(rate);
-    const a = Number(amount);
-    if (!r || r <= 0) return setError('Enter the rate per litre.');
-    if (!a || a <= 0) return setError('Enter the amount paid.');
-    if (!odometer) return setError('Enter the odometer reading.');
+  const edit = (key) => (text) => {
+    setVals((v) => ({ ...v, [key]: clean(text) }));
+    setSources((s) => [key, ...s.filter((k) => k !== key)].slice(0, 2));
+  };
 
+  const types = useMemo(
+    () => [...new Set([...BASE_TYPES, ...records.map((r) => r.fuel_type).filter(Boolean)])],
+    [records],
+  );
+
+  const preview = useMemo(
+    () => previewFill(records, {
+      id: editing?.id, date: date.toISOString(), odometer, liters, amount, full,
+    }),
+    [records, editing, date, odometer, liters, amount, full],
+  );
+
+  const setDay = (offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() - offset);
+    setDate(d);
+  };
+  const isDay = (offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() - offset);
+    return d.toDateString() === date.toDateString();
+  };
+
+  const save = async (confirmedLowOdo = false) => {
+    if (!carListId) return setError('There’s no Car list to save to.');
+    if (!(amount > 0)) return setError('Enter the amount you paid.');
+    if (!(liters > 0)) return setError('Enter the rate or the litres.');
+    if (!odometer) {
+      odoRef.current?.focus();
+      return setError('Enter the odometer reading.');
+    }
+    if (preview.lowerThanLast && !confirmedLowOdo) {
+      return Alert.alert(
+        'Odometer lower than last time',
+        `Your last refill was at ${grouped(preview.lastOdometer)} km. Save ${grouped(odometer)} km anyway?`,
+        [{ text: 'Fix it', style: 'cancel' }, { text: 'Save anyway', onPress: () => save(true) }],
+      );
+    }
     setSaving(true);
     setError('');
     const payload = {
       spending_list_id: carListId,
       category_id: fuelCategoryId,
       item_name: `Fuel · ${fuelType}`,
-      amount: a,
+      amount,
       quantity: 1,
       unit: 'ltr',
-      purchased_at: toServerDate(purchasedAt),
+      purchased_at: date,
       notes: notes.trim() || null,
-      fuel_liters: Number(liters.toFixed(2)),
-      fuel_rate: r,
+      fuel_liters: liters,
+      fuel_rate: rate,
       odometer: parseInt(odometer, 10),
       fuel_type: fuelType,
-      is_full_tank: isFullTank,
+      is_full_tank: full,
     };
-
     try {
       const db = await getDb();
-      if (editing) {
-        await db.entries.update(editing.id, payload);
-      } else {
-        await db.entries.create(payload);
-      }
+      if (editing) await db.entries.update(editing.id, payload);
+      else await db.entries.create(payload);
       emit(EVENTS.ENTRIES_CHANGED);
-      toast.success(editing ? 'Refill updated.' : 'Refill saved.');
+      toast.success(
+        preview.kmpl && !editing ? `Refill saved · ${preview.kmpl} km/L` : editing ? 'Refill updated.' : 'Refill saved.',
+      );
       navigation.goBack();
     } catch (e) {
       setError(errorMessage(e, 'Could not save the refill.'));
@@ -115,242 +169,305 @@ export default function FuelEntryScreen({ route, navigation }) {
     }
   };
 
-  const remove = () => {
-    Alert.alert('Delete refill', 'Remove this entry permanently?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await (await getDb()).entries.remove(editing.id);
-            emit(EVENTS.ENTRIES_CHANGED);
-            toast.success('Refill deleted.');
-            navigation.goBack();
-          } catch (e) {
-            setError(errorMessage(e));
-            toast.error(errorMessage(e, 'Could not delete the refill.'));
-          }
-        },
+  const remove = () => Alert.alert('Delete refill', 'Remove this refill permanently?', [
+    { text: 'Cancel', style: 'cancel' },
+    {
+      text: 'Delete',
+      style: 'destructive',
+      onPress: async () => {
+        try {
+          await (await getDb()).entries.remove(editing.id);
+          emit(EVENTS.ENTRIES_CHANGED);
+          toast.success('Refill deleted.');
+          navigation.goBack();
+        } catch (e) {
+          toast.error(errorMessage(e, 'Could not delete the refill.'));
+        }
       },
-    ]);
-  };
+    },
+  ]);
 
-  if (loading) {
-    return <Loading label="Loading…" />;
-  }
+  if (!ready) return <Loading />;
+
+  const odoHint = preview.lowerThanLast
+    ? `Lower than your last reading (${grouped(preview.lastOdometer)} km)`
+    : preview.kmSince
+      ? `+${grouped(preview.kmSince)} km since last refill`
+      : preview.lastOdometer != null
+        ? `Last: ${grouped(preview.lastOdometer)} km · ${dayLabel(preview.lastDate)}`
+        : null;
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior="padding"
-    >
-    <ScrollView
-      contentContainerStyle={styles.body}
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="on-drag"
-    >
-      <View style={styles.row}>
-        <View style={styles.col}>
-          <KLabel>Rate ({ccy.symbol}/L)</KLabel>
-          <TextInput
-            value={rate}
-            onChangeText={setRate}
-            placeholder="0"
-            placeholderTextColor={colors.inkSoft}
-            keyboardType="numeric"
-            style={styles.field}
-          />
-        </View>
-        <View style={styles.col}>
-          <KLabel>Amount paid ({ccy.symbol})</KLabel>
-          <TextInput
-            value={amount}
-            onChangeText={setAmount}
-            placeholder="0"
-            placeholderTextColor={colors.inkSoft}
-            keyboardType="numeric"
-            style={styles.field}
-          />
-        </View>
-      </View>
-
-      {/* Computed liters */}
-      <View style={styles.calcCard}>
-        <Text style={styles.calcLabel}>That's</Text>
-        <Text style={styles.calcValue}>{liters > 0 ? liters.toFixed(2) : '0.00'} L</Text>
-        <Text style={styles.calcSub}>
-          {liters > 0 ? `${money(Number(amount) || 0)} at ${money(Number(rate) || 0)}/L` : 'Enter rate and amount'}
-        </Text>
-      </View>
-
-      <KLabel>Odometer (km)</KLabel>
-      <TextInput
-        value={odometer}
-        onChangeText={setOdometer}
-        placeholder="e.g. 71500"
-        placeholderTextColor={colors.inkSoft}
-        keyboardType="numeric"
-        style={styles.field}
-      />
-
-      <KLabel>Fuel type</KLabel>
-      <View style={styles.typeRow}>
-        {FUEL_TYPES.map((t) => {
-          const active = t === fuelType;
-          return (
-            <Pressable
-              key={t}
-              onPress={() => setFuelType(t)}
-              style={[styles.typeCell, active && styles.typeCellActive]}
-            >
-              <Text style={[styles.typeText, active && styles.typeTextActive]}>{t}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <Pressable style={styles.checkRow} onPress={() => setIsFullTank((v) => !v)}>
-        <View style={[styles.checkBox, isFullTank && styles.checkBoxOn]}>
-          {isFullTank ? <Ionicons name="checkmark" size={16} color={colors.white} /> : null}
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.checkTitle}>Full tank</Text>
-          <Text style={styles.checkSub}>
-            {isFullTank ? 'Tank filled to full' : 'Partial fill — does not anchor km/L calc'}
+    <KeyboardAvoidingView style={styles.screen} behavior="padding">
+      <ScrollView contentContainerStyle={{ paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+        {/* Amount paid — the number on the pump */}
+        <Pressable style={styles.amountWrap} onPress={() => amountRef.current?.focus()}>
+          <View style={styles.amountRow}>
+            <Text style={styles.symbol}>{ccy.symbol}</Text>
+            <TextInput
+              ref={amountRef}
+              value={shown.amount}
+              onChangeText={edit('amount')}
+              placeholder="0"
+              placeholderTextColor={colors.rule}
+              keyboardType="decimal-pad"
+              autoFocus={!editing}
+              selectTextOnFocus={derived === 'amount'}
+              selectionColor={colors.primary}
+              cursorColor={colors.ink}
+              style={[styles.amountInput, derived === 'amount' && { color: colors.inkSoft }]}
+              accessibilityLabel="Amount paid"
+            />
+          </View>
+          <Text style={type.bodySoft}>
+            {liters > 0 ? `${liters} L at ${ccy.symbol} ${rate}/L` : 'Amount paid'}
           </Text>
-        </View>
-      </Pressable>
+        </Pressable>
 
-      <View style={styles.row}>
-        <View style={styles.col}>
-          <KLabel>Date</KLabel>
-          <Pressable style={styles.field} onPress={() => setDateMode('date')}>
-            <Text style={styles.fieldText}>{formatDate(purchasedAt.toISOString())}</Text>
-          </Pressable>
+        {/* Any two of rate / litres / amount */}
+        <View style={styles.pair}>
+          <Field
+            label={`Rate · ${ccy.symbol}/L`}
+            value={shown.rate}
+            onChangeText={edit('rate')}
+            auto={derived === 'rate'}
+          />
+          <Field
+            label="Litres"
+            value={shown.liters}
+            onChangeText={edit('liters')}
+            auto={derived === 'liters'}
+          />
         </View>
-        <View style={styles.col}>
-          <KLabel>Time</KLabel>
-          <Pressable style={styles.field} onPress={() => setDateMode('time')}>
-            <Text style={styles.fieldText}>
-              {formatDate(purchasedAt.toISOString(), true).split(', ')[1]}
+
+        {/* Odometer with live context */}
+        <View style={styles.group}>
+          <Caps>Odometer · km</Caps>
+          <TextInput
+            ref={odoRef}
+            value={odometer}
+            onChangeText={(t) => setOdometer(t.replace(/[^0-9]/g, ''))}
+            placeholder={preview.lastOdometer != null ? `More than ${grouped(preview.lastOdometer)}` : 'e.g. 71500'}
+            placeholderTextColor={colors.muted}
+            keyboardType="number-pad"
+            selectionColor={colors.primary}
+            cursorColor={colors.ink}
+            style={[styles.input, preview.lowerThanLast && { borderColor: colors.bad }]}
+            accessibilityLabel="Odometer reading"
+          />
+          {odoHint ? (
+            <Text style={[styles.hint, preview.lowerThanLast && { color: colors.bad }, preview.kmSince && { color: colors.ink }]}>
+              {odoHint}
             </Text>
-          </Pressable>
+          ) : null}
         </View>
+
+        {/* Full tank vs top-up decides how km/L is counted */}
+        <View style={styles.group}>
+          <View style={styles.segment}>
+            {[[true, 'Full tank'], [false, 'Top-up']].map(([val, label]) => (
+              <Pressable
+                key={label}
+                onPress={() => setFull(val)}
+                style={[styles.segItem, full === val && styles.segOn]}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: full === val }}
+              >
+                <Text style={[styles.segText, full === val && { color: colors.white }]}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Live result for this fill */}
+        {full && preview.kmpl ? (
+          <View style={styles.result}>
+            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+              <Text style={styles.resultBig}>{preview.kmpl}</Text>
+              <Text style={styles.resultUnit}>km/L</Text>
+            </View>
+            <Text style={styles.resultSub}>
+              {ccy.symbol} {preview.perKm} per km · {grouped(preview.kmSince)} km on this tank
+            </Text>
+          </View>
+        ) : !full ? (
+          <View style={styles.note}>
+            <Ionicons name="information-circle-outline" size={18} color={colors.inkSoft} />
+            <Text style={styles.noteText}>
+              Top-ups don’t get their own km/L — their litres count towards your next full tank, so the average stays accurate.
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={styles.group}>
+          <Caps>Fuel</Caps>
+          <View style={styles.wrap}>
+            {types.map((t) => (
+              <Pressable
+                key={t}
+                onPress={() => setFuelType(t)}
+                style={[styles.chip, t === fuelType && { backgroundColor: colors.ink }]}
+                accessibilityState={{ selected: t === fuelType }}
+              >
+                <Text style={[styles.chipText, t === fuelType && { color: colors.white }]}>{t}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.group}>
+          <Caps>When</Caps>
+          <View style={styles.wrap}>
+            {[[0, 'Today'], [1, 'Yesterday']].map(([off, label]) => (
+              <Pressable
+                key={label}
+                onPress={() => setDay(off)}
+                style={[styles.chip, isDay(off) && { backgroundColor: colors.ink }]}
+              >
+                <Text style={[styles.chipText, isDay(off) && { color: colors.white }]}>{label}</Text>
+              </Pressable>
+            ))}
+            <Pressable
+              onPress={() => setPicking(true)}
+              style={[styles.chip, styles.chipIcon, !isDay(0) && !isDay(1) && { backgroundColor: colors.ink }]}
+            >
+              <Ionicons name="calendar-outline" size={15} color={!isDay(0) && !isDay(1) ? colors.white : colors.ink} />
+              <Text style={[styles.chipText, !isDay(0) && !isDay(1) && { color: colors.white }]}>
+                {!isDay(0) && !isDay(1) ? dayLabel(date.toISOString()) : 'Other day'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={{ paddingHorizontal: 20 }}>
+          <TextInput
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Station or note (optional)"
+            placeholderTextColor={colors.inkSoft}
+            cursorColor={colors.ink}
+            style={styles.notes}
+            maxLength={2000}
+          />
+        </View>
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+      </ScrollView>
+
+      <View style={[styles.bar, { paddingBottom: 16 + insets.bottom }]}>
+        {editing ? (
+          <Pressable onPress={remove} style={styles.deleteBtn} accessibilityLabel="Delete refill">
+            <Ionicons name="trash-outline" size={22} color={colors.bad} />
+          </Pressable>
+        ) : null}
+        <Pressable
+          onPress={() => save()}
+          disabled={saving}
+          style={({ pressed }) => [
+            styles.save,
+            (!(amount > 0 && liters > 0 && odometer) || saving) && { opacity: 0.5 },
+            pressed && { opacity: 0.85 },
+          ]}
+        >
+          <Text style={styles.saveText}>
+            {saving ? 'Saving…' : amount > 0 ? `Save refill · ${ccy.symbol} ${grouped(amount)}` : 'Save refill'}
+          </Text>
+        </Pressable>
       </View>
 
-      <KLabel>Remarks</KLabel>
-      <TextInput
-        value={notes}
-        onChangeText={setNotes}
-        placeholder="Optional"
-        placeholderTextColor={colors.inkSoft}
-        multiline
-        style={[styles.field, { minHeight: 60, textAlignVertical: 'top' }]}
-      />
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-
-      <Button
-        title={editing ? 'Save changes' : 'Save refill'}
-        onPress={save}
-        loading={saving}
-        icon="checkmark"
-        style={{ marginTop: 10 }}
-      />
-      {editing ? (
-        <Button
-          title="Delete refill"
-          onPress={remove}
-          variant="outline"
-          icon="trash-outline"
-          style={{ marginTop: 10 }}
-        />
-      ) : null}
-
-      {dateMode ? (
+      {picking ? (
         <DateTimePicker
-          value={purchasedAt}
-          mode={dateMode}
-          is24Hour={false}
-          onChange={(event, selected) => {
-            setDateMode(null);
-            if (event.type === 'set' && selected) setPurchasedAt(selected);
+          value={date}
+          mode="date"
+          maximumDate={new Date()}
+          onChange={(event, picked) => {
+            setPicking(false);
+            if (event.type === 'set' && picked) {
+              const d = new Date(picked);
+              d.setHours(date.getHours(), date.getMinutes());
+              setDate(d);
+            }
           }}
         />
       ) : null}
-    </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+/** Small numeric field; `auto` marks the one being calculated from the others. */
+function Field({ label, value, onChangeText, auto }) {
+  return (
+    <View style={{ flex: 1, gap: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Caps>{label}</Caps>
+        {auto ? <Text style={styles.auto}>AUTO</Text> : null}
+      </View>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder="0"
+        placeholderTextColor={colors.muted}
+        keyboardType="decimal-pad"
+        selectTextOnFocus={auto}
+        selectionColor={colors.primary}
+        cursorColor={colors.ink}
+        style={[styles.input, auto && { backgroundColor: colors.soft, borderColor: colors.soft, color: colors.inkSoft }]}
+        accessibilityLabel={label}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  body: { padding: 20, paddingBottom: 44 },
-  row: { flexDirection: 'row', gap: 12 },
-  col: { flex: 1 },
-  field: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.rule,
-    borderRadius: 10,
-    paddingHorizontal: 13,
-    paddingVertical: 12,
-    fontSize: 15,
-    fontFamily: fonts.sans,
-    color: colors.ink,
-    marginBottom: 14,
-    marginTop: 7,
+  amountWrap: { alignItems: 'center', gap: 8, paddingTop: 28, paddingBottom: 24 },
+  amountRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, paddingHorizontal: 20 },
+  symbol: { fontFamily: fonts.sansMedium, fontSize: 24, color: colors.inkSoft },
+  amountInput: {
+    fontFamily: fonts.display, fontSize: 64, letterSpacing: -3, color: colors.ink,
+    minWidth: 50, padding: 0, includeFontPadding: false,
   },
-  fieldText: { fontSize: 15, fontFamily: fonts.sans, color: colors.ink },
-  calcCard: {
-    backgroundColor: colors.soft,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 14,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.rule,
+  pair: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingBottom: 20 },
+  group: { paddingHorizontal: 20, paddingBottom: 20, gap: 8 },
+  input: {
+    height: 56, borderWidth: 1.5, borderColor: colors.rule, borderRadius: 14, paddingHorizontal: 16,
+    fontFamily: fonts.monoMedium, fontSize: 18, color: colors.ink,
   },
-  calcLabel: { fontFamily: fonts.mono, fontSize: 10, letterSpacing: 1.4, color: colors.inkSoft, textTransform: 'uppercase' },
-  calcValue: { fontFamily: fonts.serifMedium, fontSize: 38, color: colors.ink, marginTop: 4, letterSpacing: -1 },
-  calcSub: { fontFamily: fonts.sans, fontSize: 12, color: colors.inkSoft, marginTop: 2 },
-  typeRow: { flexDirection: 'row', gap: 8, marginTop: 6, marginBottom: 14 },
-  typeCell: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colors.rule,
-    backgroundColor: colors.card,
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
+  hint: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.inkSoft },
+  auto: {
+    fontFamily: fonts.sansMedium, fontSize: 10, letterSpacing: 0.8, color: colors.inkSoft,
+    backgroundColor: colors.soft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden',
   },
-  typeCellActive: { borderColor: colors.ink, backgroundColor: colors.soft },
-  typeText: { fontFamily: fonts.monoMedium, fontSize: 14, color: colors.ink, letterSpacing: 1 },
-  typeTextActive: { color: colors.ink },
-  checkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.rule,
-    marginBottom: 14,
+  segment: { flexDirection: 'row', padding: 4, gap: 4, borderRadius: 14, backgroundColor: colors.soft },
+  segItem: { flex: 1, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  segOn: { backgroundColor: colors.ink },
+  segText: { fontFamily: fonts.sansMedium, fontSize: 15, color: colors.ink },
+  result: {
+    marginHorizontal: 20, marginBottom: 20, padding: 16, borderRadius: 14,
+    backgroundColor: colors.ink, gap: 2,
   },
-  checkBox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: colors.inkSoft,
-    backgroundColor: colors.card,
-    alignItems: 'center',
-    justifyContent: 'center',
+  resultBig: { fontFamily: fonts.display, fontSize: 34, letterSpacing: -1.2, color: colors.primary },
+  resultUnit: { fontFamily: fonts.sansMedium, fontSize: 16, color: colors.white },
+  resultSub: { fontFamily: fonts.sans, fontSize: 13, color: '#BDBDBD' },
+  note: {
+    flexDirection: 'row', gap: 10, marginHorizontal: 20, marginBottom: 20, padding: 14,
+    borderRadius: 14, backgroundColor: colors.soft,
   },
-  checkBoxOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  checkTitle: { fontFamily: fonts.sansMedium, fontSize: 14.5, color: colors.ink },
-  checkSub: { fontFamily: fonts.sans, fontSize: 12, color: colors.inkSoft, marginTop: 2 },
-  error: { color: colors.alarm, fontSize: 13, marginVertical: 10, fontFamily: fonts.sans },
+  noteText: { flex: 1, fontFamily: fonts.sans, fontSize: 13, lineHeight: 19, color: colors.inkSoft },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { height: 40, paddingHorizontal: 16, borderRadius: 10, justifyContent: 'center', backgroundColor: colors.soft },
+  chipIcon: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  chipText: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.ink },
+  notes: {
+    height: 52, borderBottomWidth: 1.5, borderBottomColor: colors.rule,
+    fontFamily: fonts.sans, fontSize: 15, color: colors.ink, paddingHorizontal: 0,
+  },
+  error: { fontFamily: fonts.sans, fontSize: 14, color: colors.bad, paddingHorizontal: 20, paddingTop: 14 },
+  bar: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingTop: 12, backgroundColor: colors.bg },
+  deleteBtn: {
+    width: 56, height: 56, borderRadius: 14, backgroundColor: colors.soft,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  save: { flex: 1, height: 56, borderRadius: 14, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  saveText: { fontFamily: fonts.display, fontSize: 17, letterSpacing: -0.3, color: colors.ink },
 });
