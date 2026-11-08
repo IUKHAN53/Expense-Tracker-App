@@ -14,7 +14,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { AppHeader } from '../components/Header';
 import { Button, Card, KLabel, TextField } from '../components/ui';
-import api, { errorMessage } from '../api/client';
+import { getDb } from '../db';
+import { errorMessage } from '../support/errors';
 import { colors, fonts } from '../theme';
 import { emit, EVENTS } from '../support/events';
 import { useToast } from '../components/Toast';
@@ -36,8 +37,7 @@ export default function ManageCategoriesScreen() {
 
   const load = useCallback(async () => {
     try {
-      const res = await api.get('/categories');
-      setCategories(res.data.data || []);
+      setCategories((await (await getDb()).categories.all()).data);
       setError('');
     } catch (e) {
       setError(errorMessage(e, 'Could not load categories.'));
@@ -77,7 +77,7 @@ export default function ManageCategoriesScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await api.delete(`/categories/${cat.id}`);
+              await (await getDb()).categories.remove(cat.id);
               emit(EVENTS.CATEGORIES_CHANGED);
               toast.success(`“${cat.name}” deleted.`);
               load();
@@ -170,9 +170,9 @@ function EditModal({ visible, creating, initial, onClose, onSaved, onError }) {
     setSaving(true);
     try {
       if (creating) {
-        await api.post('/categories', { name: name.trim(), color });
+        await (await getDb()).categories.create({ name: name.trim(), color });
       } else {
-        await api.put(`/categories/${initial.id}`, { name: name.trim(), color });
+        await (await getDb()).categories.update(initial.id, { name: name.trim(), color });
       }
       toast.success(creating ? `“${name.trim()}” added.` : `“${name.trim()}” updated.`);
       onSaved();

@@ -2,13 +2,13 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } fro
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { errorMessage } from '../api/client';
+import { getDb } from '../db';
+import { errorMessage } from '../support/errors';
 import { Avatar, Card, EmptyState, Loading, SectionHeader,  } from '../components/ui';
 import { CategoryBreakdown, ExpenseItem } from '../components/bits';
 import { colors, currentMonthKey, fonts, monthLabel } from '../theme';
 import { useMoney } from '../hooks/useMoney';
 import { on, EVENTS } from '../support/events';
-import { cachedGet } from '../support/cachedApi';
 
 export default function ListDetailScreen({ route, navigation }) {
   const money = useMoney();
@@ -29,10 +29,10 @@ export default function ListDetailScreen({ route, navigation }) {
     try {
       setError('');
       const month = currentMonthKey();
-      // Cached per list so the detail view still opens offline.
+      const db = await getDb();
       const [e, s] = await Promise.all([
-        cachedGet(`list-entries:${list.id}`, '/entries', { params: { spending_list_id: list.id, month } }),
-        cachedGet('summary', '/summary', { params: { month } }),
+        db.entries.list({ spending_list_id: list.id, month }),
+        db.summary({ month }),
       ]);
       setEntries(e.data || []);
       setTotal(e.total || 0);

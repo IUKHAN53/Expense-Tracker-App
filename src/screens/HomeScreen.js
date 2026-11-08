@@ -2,15 +2,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,  } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import api, { errorMessage } from '../api/client';
+import { getDb } from '../db';
+import { errorMessage } from '../support/errors';
 import { AppHeader } from '../components/Header';
 import { Card, EmptyState, Loading, PersonBar, SectionHeader,  } from '../components/ui';
 import { CategoryBreakdown, ExpenseItem } from '../components/bits';
 import { colors, currentMonthKey, fonts, monthLabelShort } from '../theme';
 import { useMoney } from '../hooks/useMoney';
 import { on, EVENTS } from '../support/events';
-import { getCache, setCache } from '../support/cache';
-import { warmCache } from '../support/cachedApi';
 
 export default function HomeScreen({ navigation }) {
   const money = useMoney();
@@ -25,26 +24,15 @@ export default function HomeScreen({ navigation }) {
     try {
       setError('');
       const month = currentMonthKey();
+      const db = await getDb();
       const [s, e] = await Promise.all([
-        api.get('/summary', { params: { month } }),
-        api.get('/entries', { params: { month, limit: 8 } }),
+        db.summary({ month }),
+        db.entries.list({ month, limit: 8 }),
       ]);
-      setSummary(s.data);
-      setEntries(e.data.data || []);
-      setCache('home', { summary: s.data, entries: e.data.data || [] });
-      // Warm the pickers so adding an expense works even fully offline.
-      warmCache('lists', '/lists');
-      warmCache('categories', '/categories');
+      setSummary(s);
+      setEntries(e.data);
     } catch (err) {
-      // Offline / server unreachable: fall back to the last cached view.
-      // The global offline banner already signals the connection state.
-      const cached = await getCache('home');
-      if (cached?.data?.summary) {
-        setSummary(cached.data.summary);
-        setEntries(cached.data.entries || []);
-      } else {
-        setError(errorMessage(err));
-      }
+      setError(errorMessage(err));
     } finally {
       setLoading(false);
       setRefreshing(false);

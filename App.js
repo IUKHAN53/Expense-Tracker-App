@@ -12,11 +12,9 @@ import {
 } from '@expo-google-fonts/newsreader';
 import { Geist_400Regular, Geist_500Medium, Geist_600SemiBold } from '@expo-google-fonts/geist';
 import { GeistMono_400Regular, GeistMono_500Medium } from '@expo-google-fonts/geist-mono';
-import { AuthProvider } from './src/context/AuthContext';
-import { ConnectivityProvider } from './src/context/ConnectivityContext';
+import { AppProvider } from './src/context/AppContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
-import { OfflineBanner } from './src/components/OfflineBanner';
 import { ToastProvider } from './src/components/Toast';
 import { colors } from './src/theme';
 
@@ -49,19 +47,14 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <AuthProvider>
+        <AppProvider>
           <ToastProvider>
-            <ConnectivityProvider>
-              <NavigationContainer theme={navTheme}>
-                <View style={{ flex: 1 }}>
-                  <OfflineBanner />
-                  <RootNavigator />
-                </View>
-              </NavigationContainer>
-              <StatusBar style="dark" />
-            </ConnectivityProvider>
+            <NavigationContainer theme={navTheme}>
+              <RootNavigator />
+            </NavigationContainer>
+            <StatusBar style="dark" />
           </ToastProvider>
-        </AuthProvider>
+        </AppProvider>
       </ErrorBoundary>
     </SafeAreaProvider>
   );

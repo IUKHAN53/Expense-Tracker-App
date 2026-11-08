@@ -2,14 +2,11 @@ import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
-import api, { errorMessage } from '../api/client';
+import { getDb } from '../db';
+import { errorMessage } from '../support/errors';
 import { Button, KLabel, Loading } from '../components/ui';
 import { colors, fonts, formatDate } from '../theme';
 import { useCurrency, useMoney } from '../hooks/useMoney';
-import { useOnline } from '../context/ConnectivityContext';
-import { enqueueEntry } from '../support/outbox';
-import { isNetworkError } from '../support/net';
-import { cachedGet } from '../support/cachedApi';
 import { emit, EVENTS } from '../support/events';
 import { useToast } from '../components/Toast';
 
@@ -24,7 +21,6 @@ export default function FuelEntryScreen({ route, navigation }) {
   const money = useMoney();
   const ccy = useCurrency();
   const toast = useToast();
-  const { online, refreshPending } = useOnline();
   const editing = route.params?.entry || null;
 
   const [carListId, setCarListId] = useState(null);
@@ -55,14 +51,11 @@ export default function FuelEntryScreen({ route, navigation }) {
   useEffect(() => {
     (async () => {
       try {
-        // Cached so a refill can still be logged (offline) without a fetch.
-        const [listsData, catsData] = await Promise.all([
-          cachedGet('lists', '/lists'),
-          cachedGet('categories', '/categories'),
-        ]);
-        const car = (listsData.data || []).find((l) => l.type === 'vehicle');
-        const fuel = (catsData.data || []).find((c) => /^fuel$/i.test(c.name));
-        if (!car) setError('No Car list found. Create one in the admin panel.');
+        const db = await getDb();
+        const [listsData, catsData] = await Promise.all([db.lists.all(), db.categories.all()]);
+        const car = listsData.data.find((l) => l.type === 'vehicle');
+        const fuel = catsData.data.find((c) => /^fuel$/i.test(c.name));
+        if (!car) setError('No Car list yet. Add one (type: Vehicle) in Settings → Lists.');
         setCarListId(car?.id || null);
         setFuelCategoryId(fuel?.id || null);
       } catch (e) {
@@ -106,35 +99,17 @@ export default function FuelEntryScreen({ route, navigation }) {
       is_full_tank: isFullTank,
     };
 
-    const queueOffline = async () => {
-      await enqueueEntry(payload);
-      await refreshPending();
-      setSaving(false);
-      toast.info('Saved offline — it’ll sync automatically when you’re back online.');
-      navigation.goBack();
-    };
-
-    if (editing && !online) {
-      setSaving(false);
-      return setError("You're offline — editing a refill needs a connection.");
-    }
-    if (!editing && !online) {
-      return queueOffline();
-    }
-
     try {
+      const db = await getDb();
       if (editing) {
-        await api.put(`/entries/${editing.id}`, payload);
+        await db.entries.update(editing.id, payload);
       } else {
-        await api.post('/entries', payload);
+        await db.entries.create(payload);
       }
       emit(EVENTS.ENTRIES_CHANGED);
       toast.success(editing ? 'Refill updated.' : 'Refill saved.');
       navigation.goBack();
     } catch (e) {
-      if (!editing && isNetworkError(e)) {
-        return queueOffline();
-      }
       setError(errorMessage(e, 'Could not save the refill.'));
       setSaving(false);
     }
@@ -148,7 +123,7 @@ export default function FuelEntryScreen({ route, navigation }) {
         style: 'destructive',
         onPress: async () => {
           try {
-            await api.delete(`/entries/${editing.id}`);
+            await (await getDb()).entries.remove(editing.id);
             emit(EVENTS.ENTRIES_CHANGED);
             toast.success('Refill deleted.');
             navigation.goBack();

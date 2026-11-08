@@ -3,23 +3,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 import { colors, fonts } from '../theme';
-import { Loading } from '../components/ui';
-import LoginScreen from '../screens/LoginScreen';
-import SignUpScreen from '../screens/SignUpScreen';
-import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
+import { View } from 'react-native';
+import { Button, EmptyState, Loading } from '../components/ui';
 import HomeScreen from '../screens/HomeScreen';
 import ListDetailScreen from '../screens/ListDetailScreen';
 import AddEntryScreen from '../screens/AddEntryScreen';
 import FuelScreen from '../screens/FuelScreen';
 import FuelEntryScreen from '../screens/FuelEntryScreen';
-import ScanScreen from '../screens/ScanScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-import HouseholdScreen from '../screens/HouseholdScreen';
 import ManageListsScreen from '../screens/ManageListsScreen';
 import ManageCategoriesScreen from '../screens/ManageCategoriesScreen';
-import VerifyEmailScreen from '../screens/VerifyEmailScreen';
 import CurrencyPickerScreen from '../screens/CurrencyPickerScreen';
 
 const Stack = createNativeStackNavigator();
@@ -28,7 +23,6 @@ const Tab = createBottomTabNavigator();
 const TAB_ICONS = {
   Home: 'pie-chart',
   Fuel: 'car-sport',
-  Scan: 'scan',
   Settings: 'settings',
 };
 
@@ -63,33 +57,38 @@ function Tabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Fuel" component={FuelScreen} />
-      <Tab.Screen name="Scan" component={ScanScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );
 }
 
 export default function RootNavigator() {
-  const { ready, token, requiresVerification, requiresCurrency } = useAuth();
+  const { ready, dbError, retry, currency } = useApp();
 
   if (!ready) {
     return <Loading label="Loading…" />;
   }
 
+  if (dbError) {
+    // Never auto-recreate the database here: that would wipe the user's data.
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.bg }}>
+        <EmptyState
+          icon="lock-closed-outline"
+          title="Couldn’t open your data"
+          subtitle={dbError.message}
+        />
+        <Button title="Try again" onPress={retry} />
+      </View>
+    );
+  }
+
   return (
     <Stack.Navigator screenOptions={stackHeader}>
-      {!token ? (
-        <>
-          <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="SignUp" component={SignUpScreen} options={{ title: 'Create account' }} />
-          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: 'Reset password' }} />
-        </>
-      ) : requiresVerification ? (
-        <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} options={{ headerShown: false }} />
-      ) : requiresCurrency ? (
+      {!currency ? (
         // Distinct name from the in-app "CurrencyPicker" below. If both stacks
         // shared a name, React Navigation would keep the user on the currency
-        // screen when requiresCurrency flips false (the focused route name still
+        // screen when the currency gets set (the focused route name still
         // exists), instead of resetting to Tabs/Home — the "stuck loading" bug.
         <Stack.Screen name="CurrencySetup" component={CurrencyPickerScreen} options={{ headerShown: false }} />
       ) : (
@@ -98,7 +97,6 @@ export default function RootNavigator() {
           <Stack.Screen name="ListDetail" component={ListDetailScreen} options={{ title: 'List' }} />
           <Stack.Screen name="AddEntry" component={AddEntryScreen} options={{ title: 'Add Expense' }} />
           <Stack.Screen name="FuelEntry" component={FuelEntryScreen} options={{ title: 'New refill' }} />
-          <Stack.Screen name="Household" component={HouseholdScreen} options={{ title: 'Household' }} />
           <Stack.Screen name="ManageLists" component={ManageListsScreen} options={{ title: 'Lists' }} />
           <Stack.Screen name="ManageCategories" component={ManageCategoriesScreen} options={{ title: 'Categories' }} />
           <Stack.Screen name="CurrencyPicker" component={CurrencyPickerScreen} options={{ title: 'Currency' }} />

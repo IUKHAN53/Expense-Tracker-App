@@ -1,14 +1,11 @@
 import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import api, { errorMessage } from '../api/client';
+import { getDb } from '../db';
+import { errorMessage } from '../support/errors';
 import { Avatar, Button, CatChip, KLabel, Loading } from '../components/ui';
 import { colors, fonts, formatDate } from '../theme';
 import { useCurrency, useMoney } from '../hooks/useMoney';
-import { useOnline } from '../context/ConnectivityContext';
-import { enqueueEntry } from '../support/outbox';
-import { isNetworkError } from '../support/net';
-import { cachedGet } from '../support/cachedApi';
 import { emit, EVENTS } from '../support/events';
 import { useToast } from '../components/Toast';
 
@@ -21,7 +18,6 @@ export default function AddEntryScreen({ route, navigation }) {
   const money = useMoney();
   const ccy = useCurrency();
   const toast = useToast();
-  const { online, refreshPending } = useOnline();
   const editing = route.params?.entry || null;
   const presetListId = route.params?.listId || null;
 
@@ -64,11 +60,8 @@ export default function AddEntryScreen({ route, navigation }) {
   useEffect(() => {
     (async () => {
       try {
-        // Cached so the list/category pickers are available offline.
-        const [listsData, catsData] = await Promise.all([
-          cachedGet('lists', '/lists'),
-          cachedGet('categories', '/categories'),
-        ]);
+        const db = await getDb();
+        const [listsData, catsData] = await Promise.all([db.lists.all(), db.categories.all()]);
         setLists(listsData.data || []);
         setCategories(catsData.data || []);
       } catch (e) {
@@ -119,33 +112,17 @@ export default function AddEntryScreen({ route, navigation }) {
       fuel_rate: isVehicle && fuelRate ? Number(fuelRate) : null,
       odometer: isVehicle && odometer ? Number(odometer) : null,
     };
-    // Split mode divides evenly across the chosen lists (server-side).
+    // Split mode divides evenly across the chosen lists.
     const createPayload = listIds.length > 1
       ? { ...base, spending_list_ids: listIds }
       : { ...base, spending_list_id: listIds[0] };
 
-    const queueOffline = async () => {
-      await enqueueEntry(createPayload);
-      await refreshPending();
-      setSaving(false);
-      toast.info('Saved offline — it’ll sync automatically when you’re back online.');
-      navigation.goBack();
-    };
-
-    // Editing needs the record to exist server-side — not available offline.
-    if (editing && !online) {
-      setSaving(false);
-      return setError("You're offline — editing an expense needs a connection.");
-    }
-    if (!editing && !online) {
-      return queueOffline();
-    }
-
     try {
+      const db = await getDb();
       if (editing) {
-        await api.put(`/entries/${editing.id}`, { ...base, spending_list_id: listIds[0] });
+        await db.entries.update(editing.id, { ...base, spending_list_id: listIds[0] });
       } else {
-        await api.post('/entries', createPayload);
+        await db.entries.create(createPayload);
       }
       emit(EVENTS.ENTRIES_CHANGED);
       toast.success(
@@ -157,10 +134,6 @@ export default function AddEntryScreen({ route, navigation }) {
       );
       navigation.goBack();
     } catch (e) {
-      // Lost the connection mid-save while creating? Queue instead of failing.
-      if (!editing && isNetworkError(e)) {
-        return queueOffline();
-      }
       setError(errorMessage(e, 'Could not save the expense.'));
       setSaving(false);
     }
@@ -174,7 +147,7 @@ export default function AddEntryScreen({ route, navigation }) {
         style: 'destructive',
         onPress: async () => {
           try {
-            await api.delete(`/entries/${editing.id}`);
+            await (await getDb()).entries.remove(editing.id);
             emit(EVENTS.ENTRIES_CHANGED);
             toast.success('Expense deleted.');
             navigation.goBack();

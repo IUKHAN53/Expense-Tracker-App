@@ -14,7 +14,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { AppHeader } from '../components/Header';
 import { Button, Card, KLabel, TextField } from '../components/ui';
-import api, { errorMessage } from '../api/client';
+import { getDb } from '../db';
+import { errorMessage } from '../support/errors';
 import { colors, fonts } from '../theme';
 import { emit, EVENTS } from '../support/events';
 import { useToast } from '../components/Toast';
@@ -42,8 +43,7 @@ export default function ManageListsScreen() {
 
   const load = useCallback(async () => {
     try {
-      const res = await api.get('/lists');
-      setLists(res.data.data || []);
+      setLists((await (await getDb()).lists.all()).data);
       setError('');
     } catch (e) {
       setError(errorMessage(e, 'Could not load lists.'));
@@ -83,7 +83,7 @@ export default function ManageListsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await api.delete(`/lists/${list.id}`);
+              await (await getDb()).lists.remove(list.id);
               emit(EVENTS.LISTS_CHANGED);
               toast.success(`“${list.name}” deleted.`);
               load();
@@ -183,9 +183,9 @@ function EditModal({ visible, creating, initial, onClose, onSaved, onError }) {
     setSaving(true);
     try {
       if (creating) {
-        await api.post('/lists', { name: name.trim(), type, color });
+        await (await getDb()).lists.create({ name: name.trim(), type, color });
       } else {
-        await api.put(`/lists/${initial.id}`, { name: name.trim(), type, color });
+        await (await getDb()).lists.update(initial.id, { name: name.trim(), type, color });
       }
       toast.success(creating ? `“${name.trim()}” added.` : `“${name.trim()}” updated.`);
       onSaved();

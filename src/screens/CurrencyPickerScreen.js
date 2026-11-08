@@ -8,24 +8,23 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 import { CURRENCIES } from '../support/currency';
-import { errorMessage } from '../api/client';
+import { errorMessage } from '../support/errors';
 import { Mark } from '../components/Logo';
 import { useToast } from '../components/Toast';
 import { colors, fonts } from '../theme';
 
 /**
- * First-launch / change-currency picker. Shown when the user has no
- * `account.currency` set; also reachable from Settings. Saves to the
- * backend via AuthContext.setCurrency and the AuthContext refreshes
- * the user object so RootNavigator drops the picker and routes into
- * the Tabs stack.
+ * First-launch / change-currency picker. Shown until a currency is
+ * saved; also reachable from Settings. Saves to the local settings table
+ * via AppContext.setCurrency; RootNavigator then drops the picker
+ * and routes into the Tabs stack.
  */
 export default function CurrencyPickerScreen({ navigation, route }) {
-  const { user, setCurrency } = useAuth();
+  const { currency, setCurrency } = useApp();
   const toast = useToast();
-  const initial = user?.account?.currency || null;
+  const initial = currency || null;
   const [selected, setSelected] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -50,7 +49,7 @@ export default function CurrencyPickerScreen({ navigation, route }) {
       if (isChange && navigation?.canGoBack()) {
         navigation.goBack();
       }
-      // Otherwise: RootNavigator sees account.currency is now set and
+      // Otherwise: RootNavigator sees a currency is now set and
       // swaps the picker stack for the Tabs stack automatically.
     } catch (e) {
       setError(errorMessage(e, 'Could not save your currency. Try again.'));
