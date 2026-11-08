@@ -15,12 +15,15 @@
     "axios": "^1.16.1",
     "expo": "~56.0.5",
     "expo-build-properties": "~56.0.15",
+    "expo-crypto": "~56.0.5",
     "expo-file-system": "~56.0.7",
     "expo-font": "~56.0.5",
     "expo-image-picker": "~56.0.14",
     "expo-media-library": "~56.0.6",
     "expo-network": "~56.0.4",
+    "expo-secure-store": "~56.0.4",
     "expo-splash-screen": "~56.0.10",
+    "expo-sqlite": "~56.0.6",
     "expo-status-bar": "~56.0.4",
     "expo-updates": "~56.0.17",
     "react": "19.2.3",
@@ -34,7 +37,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "test:db": "node scripts/db-selfcheck.mjs"
   },
   "private": true,
   "devDependencies": {
