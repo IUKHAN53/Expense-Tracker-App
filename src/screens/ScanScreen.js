@@ -80,7 +80,10 @@ export default function ScanScreen({ route, navigation }) {
       if (res.canceled || !res.assets?.[0]) return;
       read(res.assets[0].uri);
     } catch (e) {
-      setError(errorMessage(e, 'Couldn’t open the camera.'));
+      // No camera app (emulators, some tablets/Chromebooks): steer to the gallery.
+      setError(/resolve activity|no activity/i.test(String(e?.message))
+        ? 'No camera app found on this device. Choose a photo from your gallery instead.'
+        : errorMessage(e, 'Couldn’t open the camera.'));
     }
   };
 
