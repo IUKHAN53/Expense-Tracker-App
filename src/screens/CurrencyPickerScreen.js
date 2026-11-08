@@ -13,6 +13,7 @@ import { CURRENCIES } from '../support/currency';
 import { errorMessage } from '../support/errors';
 import { Mark } from '../components/Logo';
 import { useToast } from '../components/Toast';
+import { useBackupFlows } from '../backup/useBackupFlows';
 import { colors, fonts } from '../theme';
 
 /**
@@ -30,6 +31,9 @@ export default function CurrencyPickerScreen({ navigation, route }) {
   const [error, setError] = useState('');
 
   const isChange = route?.params?.isChange === true;
+  // Onboarding only: restoring a backup also restores its currency, which
+  // flips RootNavigator into the app.
+  const { startRestore, ui } = useBackupFlows();
 
   const onSave = async () => {
     if (!selected) {
@@ -125,17 +129,28 @@ export default function CurrencyPickerScreen({ navigation, route }) {
         </Pressable>
 
         {!isChange && (
-          <Text style={styles.footer}>
-            Tip: pick the currency you most often see in receipts and on the price tag. You can change later.
-          </Text>
+          <>
+            <Text style={styles.footer}>
+              Tip: pick the currency you most often see in receipts and on the price tag. You can change later.
+            </Text>
+            <Pressable onPress={startRestore} style={styles.restore} accessibilityRole="button">
+              <Text style={styles.restoreText}>
+                Have a backup? <Text style={styles.restoreLink}>Restore it</Text>
+              </Text>
+            </Pressable>
+          </>
         )}
       </ScrollView>
+      {ui}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  restore: { marginTop: 22, paddingVertical: 10, alignItems: 'center' },
+  restoreText: { fontFamily: fonts.sans, fontSize: 14, color: colors.inkSoft },
+  restoreLink: { fontFamily: fonts.sansMedium, color: colors.ink, textDecorationLine: 'underline' },
   body: { padding: 26, paddingBottom: 60 },
 
   brand: { alignItems: 'center', marginBottom: 22 },

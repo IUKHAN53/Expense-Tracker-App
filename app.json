@@ -70,8 +70,14 @@
           }
         }
       ],
-      ["expo-sqlite", { "useSQLCipher": true }],
-      "expo-secure-store"
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
+      "expo-secure-store",
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

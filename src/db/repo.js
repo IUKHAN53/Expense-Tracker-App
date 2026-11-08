@@ -6,6 +6,7 @@
 
 import { monthKey, monthRange, toIso } from './month.js';
 import { buildFuel } from './fuel.js';
+import { SNAPSHOT_SCHEMA, validateSnapshot } from './snapshot.js';
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const NOW_SQL = "strftime('%Y-%m-%dT%H:%M:%fZ','now')";
@@ -339,5 +340,44 @@ export function createRepo(db, { uuid }) {
     },
   };
 
-  return { lists, categories, entries, summary, fuel, settings };
+  /** Whole ledger as a plain snapshot (see snapshot.js). */
+  async function exportAll() {
+    const [listRows, catRows, entryRows] = await Promise.all([
+      db.getAllAsync(`SELECT id, ${LIST_COLS.join(', ')} FROM spending_lists ORDER BY id`),
+      db.getAllAsync(`SELECT id, ${CAT_COLS.join(', ')} FROM categories ORDER BY id`),
+      db.getAllAsync(`SELECT id, ${ENTRY_COLS.join(', ')}, split_group_id FROM entries ORDER BY id`),
+    ]);
+    return {
+      app: 'kharcha',
+      schema: SNAPSHOT_SCHEMA,
+      exported_at: new Date().toISOString(),
+      currency: await settings.get('currency'),
+      lists: listRows,
+      categories: catRows,
+      entries: entryRows,
+    };
+  }
+
+  /**
+   * Replace everything with a backup. Validates first; the wipe + insert is one
+   * transaction, so a failure leaves the current data untouched.
+   */
+  async function replaceAll(raw) {
+    const snap = validateSnapshot(raw);
+    await db.withTransactionAsync(async () => {
+      await db.execAsync('DELETE FROM entries; DELETE FROM spending_lists; DELETE FROM categories;');
+      for (const l of snap.lists) await insert('spending_lists', l);
+      for (const c of snap.categories) await insert('categories', c);
+      for (const e of snap.entries) await insert('entries', e);
+      if (snap.currency) await settings.set('currency', snap.currency);
+    });
+    return {
+      lists: snap.lists.length,
+      categories: snap.categories.length,
+      entries: snap.entries.length,
+      currency: snap.currency,
+    };
+  }
+
+  return { lists, categories, entries, summary, fuel, settings, exportAll, replaceAll };
 }

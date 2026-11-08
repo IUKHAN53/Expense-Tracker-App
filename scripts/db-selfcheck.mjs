@@ -2,12 +2,16 @@
 // SQLite (no encryption here — SQLCipher only exists in the native build).
 //   node scripts/db-selfcheck.mjs
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { migrate } from '../src/db/schema.js';
 import { createRepo } from '../src/db/repo.js';
 import { buildFuel } from '../src/db/fuel.js';
 import { monthRange, toIso } from '../src/db/month.js';
+import {
+  decryptBackup, encryptBackup, fromBase64, readBackupFile, toBase64, utf8Decode, utf8Encode,
+} from '../src/backup/format.js';
+import { snapshotToCsv } from '../src/backup/csv.js';
 
 // Minimal expo-sqlite-shaped adapter.
 function adapter() {
@@ -129,5 +133,77 @@ assert.equal(await db.settings.get('missing', 'x'), 'x');
 const [from, to] = monthRange('2026-12');
 assert.ok(from < to && new Date(to).getMonth() === 0);
 assert.throws(() => toIso('garbage'));
+
+// ---- Backup: codecs ----
+const sample = 'Rs ₨ — نان 🍞 "quotes"\n';
+assert.equal(utf8Decode(utf8Encode(sample)), sample);
+assert.deepEqual(Buffer.from(utf8Encode(sample)), Buffer.from(sample, 'utf8'));
+for (const n of [0, 1, 2, 3, 31, 1000]) {
+  const b = randomBytes(n);
+  assert.equal(toBase64(b), Buffer.from(b).toString('base64'));
+  assert.deepEqual(Buffer.from(fromBase64(toBase64(b))), Buffer.from(b));
+}
+assert.throws(() => fromBase64('abc'), /damaged/);
+
+// ---- Backup: export → encrypt → decrypt → restore round trip ----
+const snap = await db.exportAll();
+assert.equal(snap.app, 'kharcha');
+assert.equal(snap.currency, 'PKR');
+const file = await encryptBackup(snap, 'correct horse', (n) => new Uint8Array(randomBytes(n)));
+assert.ok(!file.includes('Rice')); // nothing readable in the file
+const parsed = readBackupFile(file);
+assert.equal(parsed.encrypted, true);
+await assert.rejects(decryptBackup(parsed.envelope, 'wrong password'), /Wrong password/);
+const tampered = JSON.parse(file);
+tampered.kdf.salt = toBase64(randomBytes(16));
+await assert.rejects(decryptBackup(tampered, 'correct horse'), /Wrong password/);
+const hostile = { ...JSON.parse(file), kdf: { ...JSON.parse(file).kdf, N: 2 ** 24 } };
+await assert.rejects(decryptBackup(hostile, 'correct horse'), /can’t open/);
+await assert.rejects(encryptBackup(snap, 'short', randomBytes), /at least 8/);
+assert.deepEqual(await decryptBackup(parsed.envelope, 'correct horse'), snap);
+assert.throws(() => readBackupFile('not json'), /isn’t a Kharcha backup/);
+assert.throws(() => readBackupFile('{"hello":1}'), /isn’t a Kharcha backup/);
+
+// Restore into a fresh database
+const sql2 = adapter();
+await migrate(sql2);
+const db2 = createRepo(sql2, { uuid: randomUUID });
+const counts = await db2.replaceAll(await decryptBackup(parsed.envelope, 'correct horse'));
+assert.equal(counts.entries, snap.entries.length);
+assert.deepEqual(await db2.summary({ month: '2026-11' }), await db.summary({ month: '2026-11' }));
+assert.deepEqual((await db2.fuel(new Date(2026, 10, 15))).stats, (await db.fuel(new Date(2026, 10, 15))).stats);
+assert.equal(await db2.settings.get('currency'), 'PKR');
+
+// Validation rejects bad files and leaves existing data untouched
+const before = await db2.exportAll();
+const bad = structuredClone(snap);
+bad.entries[0].spending_list_id = 424242;
+await assert.rejects(db2.replaceAll(bad), /missing list/);
+const bad2 = structuredClone(snap);
+bad2.entries[0].amount = 'lots';
+await assert.rejects(db2.replaceAll(bad2), /not a valid number/);
+await assert.rejects(db2.replaceAll({ app: 'kharcha', schema: 99 }), /unsupported version/);
+const after = await db2.exportAll();
+assert.deepEqual({ ...after, exported_at: 0 }, { ...before, exported_at: 0 });
+
+// Plain snapshot (server export path) is accepted, unknown category → null
+const plain = readBackupFile(JSON.stringify({ ...snap, categories: [] }));
+assert.equal(plain.encrypted, false);
+await db2.replaceAll(plain.snapshot);
+assert.ok((await db2.entries.list({})).data.every((e) => e.category_id === null));
+
+// ---- CSV ----
+const csv = snapshotToCsv({
+  lists: [{ id: 1, name: 'Home' }],
+  categories: [],
+  entries: [
+    { spending_list_id: 1, item_name: '=HYPERLINK("x")', amount: 5, purchased_at: '2026-11-02T00:00:00.000Z' },
+    { spending_list_id: 1, item_name: 'Eggs, "large"', amount: -0, notes: 'a\nb', purchased_at: '2026-11-01T00:00:00.000Z' },
+  ],
+});
+const lines = csv.split('\r\n');
+assert.match(lines[0], /^date,list,category,item,amount/);
+assert.ok(lines[1].includes('"Eggs, ""large"""')); // oldest first, quotes escaped
+assert.ok(csv.includes(`"'=HYPERLINK(""x"")"`)); // formula neutralised
 
 console.log('db self-check: all assertions passed');

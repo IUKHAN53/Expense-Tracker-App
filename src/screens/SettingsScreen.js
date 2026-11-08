@@ -1,21 +1,48 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useApp } from '../context/AppContext';
+import { getDb } from '../db';
+import { useBackupFlows } from '../backup/useBackupFlows';
 import { AppHeader } from '../components/Header';
 import { Card } from '../components/ui';
-import { colors, fonts } from '../theme';
+import { colors, fonts, formatDate } from '../theme';
 import { expo } from '../../app.json';
 
 export default function SettingsScreen() {
   const navigation = useNavigation();
   const { currency } = useApp();
+  const [lastBackup, setLastBackup] = useState(null);
+
+  const loadLastBackup = useCallback(() => {
+    getDb().then((db) => db.settings.get('last_backup_at')).then(setLastBackup).catch(() => {});
+  }, []);
+  useFocusEffect(loadLastBackup);
+  const { startBackup, startRestore, exportCsv, ui } = useBackupFlows({ onBackedUp: loadLastBackup });
 
   return (
     <View style={styles.screen}>
       <AppHeader title="Settings" />
       <ScrollView contentContainerStyle={styles.body}>
+        <LinkRow
+          icon="shield-checkmark-outline"
+          title="Back up to a file"
+          sub={lastBackup ? `Last backup: ${formatDate(lastBackup)}` : 'No backup yet — do one now'}
+          onPress={startBackup}
+        />
+        <LinkRow
+          icon="cloud-download-outline"
+          title="Restore from a file"
+          sub="Replaces the data on this phone"
+          onPress={startRestore}
+        />
+        <LinkRow
+          icon="document-text-outline"
+          title="Export CSV"
+          sub="For spreadsheets (not encrypted)"
+          onPress={exportCsv}
+        />
         <LinkRow
           icon="list-outline"
           title="Lists"
@@ -50,6 +77,7 @@ export default function SettingsScreen() {
           </View>
         </Card>
       </ScrollView>
+      {ui}
     </View>
   );
 }
