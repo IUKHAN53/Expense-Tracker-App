@@ -69,6 +69,7 @@ export function PasswordSheet({ visible, mode, onSubmit, onClose }) {
             autoFocus
             hint={create ? `At least ${MIN_PASSWORD} characters` : undefined}
           />
+          {create && pw ? <Strength password={pw} /> : null}
           {create ? (
             <TextField
               label="Type it again"
@@ -100,17 +101,35 @@ export function PasswordSheet({ visible, mode, onSubmit, onClose }) {
   );
 }
 
+// Rough guide only — the real protection is scrypt + the user's choice.
+function Strength({ password }) {
+  const p = password;
+  const score = Math.min(4, (p.length >= MIN_PASSWORD) + (p.length >= 12) + (/[a-z]/.test(p) && /[A-Z]/.test(p)) + /[^A-Za-z]/.test(p));
+  const label = ['Too short', 'Weak', 'OK', 'Good', 'Strong'][score];
+  const tint = score >= 3 ? colors.good : score === 2 ? colors.ink : colors.bad;
+  return (
+    <View style={{ marginTop: -8, marginBottom: 14, gap: 6 }}>
+      <View style={{ flexDirection: 'row', gap: 4 }}>
+        {[1, 2, 3, 4].map((i) => (
+          <View key={i} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= score ? tint : colors.rule }} />
+        ))}
+      </View>
+      <Text style={{ fontFamily: fonts.sansMedium, fontSize: 13, color: tint }}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: colors.card, padding: 22, paddingBottom: 32,
-    borderTopLeftRadius: 16, borderTopRightRadius: 16,
+    backgroundColor: colors.bg, padding: 24, paddingBottom: 36,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
   },
-  title: { fontFamily: fonts.sansSemibold, fontSize: 22, color: colors.ink, marginBottom: 6 },
-  body: { fontFamily: fonts.sans, fontSize: 14, lineHeight: 20, color: colors.inkSoft, marginBottom: 18 },
+  title: { fontFamily: fonts.display, fontSize: 28, letterSpacing: -1.1, color: colors.ink, marginBottom: 6 },
+  body: { fontFamily: fonts.sans, fontSize: 15, lineHeight: 22, color: colors.inkSoft, marginBottom: 20 },
   warn: {
-    flexDirection: 'row', gap: 10, padding: 12, borderRadius: 8,
-    backgroundColor: colors.soft, marginBottom: 14,
+    flexDirection: 'row', gap: 10, padding: 14, borderRadius: 8,
+    backgroundColor: colors.warnFill, marginBottom: 16,
   },
   warnText: { flex: 1, fontFamily: fonts.sans, fontSize: 13.5, lineHeight: 19, color: colors.ink },
   error: { fontFamily: fonts.sans, fontSize: 13, color: colors.alarm, marginBottom: 12 },

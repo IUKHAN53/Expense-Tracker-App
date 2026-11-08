@@ -1,256 +1,181 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View,  } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getDb } from '../db';
 import { errorMessage } from '../support/errors';
-import { AppHeader } from '../components/Header';
-import { Card, EmptyState, Loading, PersonBar, SectionHeader,  } from '../components/ui';
-import { CategoryBreakdown, ExpenseItem } from '../components/bits';
-import { colors, currentMonthKey, fonts, monthLabelShort } from '../theme';
-import { useMoney } from '../hooks/useMoney';
+import { grouped } from '../support/currency';
 import { on, EVENTS } from '../support/events';
+import { colors, currentMonthKey, fonts, monthLabel, shiftMonth, type } from '../theme';
+import { useCurrency } from '../hooks/useMoney';
+import { Brand } from '../components/Logo';
+import { ActionBar, Caps, EntryRow, IconButton, PrimaryAction, SquareAction } from '../components/kit';
+import { EmptyState, Loading } from '../components/ui';
+import { ShareSheet } from '../components/ShareSheet';
 
 export default function HomeScreen({ navigation }) {
-  const money = useMoney();
-  const [summary, setSummary] = useState(null);
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const insets = useSafeAreaInsets();
+  const ccy = useCurrency();
+  const [data, setData] = useState(null);
   const [error, setError] = useState('');
-  const [showMenu, setShowMenu] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
       setError('');
       const month = currentMonthKey();
       const db = await getDb();
-      const [s, e] = await Promise.all([
+      const [summary, prev, recent] = await Promise.all([
         db.summary({ month }),
+        db.summary({ month: shiftMonth(month, -1) }),
         db.entries.list({ month, limit: 8 }),
       ]);
-      setSummary(s);
-      setEntries(e.data);
-    } catch (err) {
-      setError(errorMessage(err));
+      setData({ month, summary, prevTotal: prev.grand_total, prevMonth: prev.month, recent: recent.data });
+    } catch (e) {
+      setError(errorMessage(e));
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load]),
-  );
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useEffect(() => on(EVENTS.ENTRIES_CHANGED, load), [load]);
 
-  useEffect(() => {
-    const off = on(EVENTS.ENTRIES_CHANGED, load);
-    return off;
-  }, [load]);
+  const openEntry = (e) => {
+    if (e.fuel_liters) {
+      navigation.navigate('FuelEntry', {
+        entry: {
+          id: e.id, amount: e.amount, rate: e.fuel_rate, odometer: e.odometer,
+          fuel_type: e.fuel_type, is_full_tank: e.is_full_tank, notes: e.notes, date: e.purchased_at,
+        },
+      });
+    } else {
+      navigation.navigate('AddEntry', { entry: e });
+    }
+  };
 
-  if (loading) {
-    return (
-      <View style={styles.screen}>
-        <AppHeader />
-        <Loading label="Loading your ledger…" />
-      </View>
-    );
-  }
+  if (!data && !error) return <Loading />;
 
-  const monthKey = currentMonthKey();
-  const grandTotal = summary ? summary.grand_total : 0;
-  const lists = summary ? [...summary.lists].sort((a, b) => b.total - a.total) : [];
-  const byCategory = summary
-    ? summary.by_category.map((c) => ({ name: c.category_name, amount: c.total }))
-    : [];
-  const entryCount = summary
-    ? summary.by_category.reduce((n, c) => n + (c.count || 0), 0)
-    : 0;
+  const total = data?.summary.grand_total ?? 0;
+  const diff = data ? total - data.prevTotal : 0;
+  const hasCar = data?.summary.lists.some((l) => l.type === 'vehicle');
 
   return (
-    <View style={styles.screen}>
-      <AppHeader />
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <Brand />
+        <View style={styles.headerRight}>
+          <Pressable
+            onPress={() => setShareOpen(true)}
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.sharePill, pressed && { opacity: 0.7 }]}
+          >
+            <Ionicons name="share-outline" size={16} color={colors.ink} />
+            <Text style={styles.shareText}>Share app</Text>
+          </Pressable>
+          <IconButton icon="options-outline" label="Settings" onPress={() => navigation.navigate('Settings')} />
+        </View>
+      </View>
 
       <ScrollView
-        contentContainerStyle={styles.body}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              load();
-            }}
-            tintColor={colors.accent}
-          />
-        }
+        contentContainerStyle={{ paddingBottom: 140 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.ink} />}
       >
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <EmptyState icon="alert-circle-outline" title="Couldn’t load" subtitle={error} /> : null}
 
-        <View style={styles.hero}>
-          <Text style={styles.heroLabel}>TOTAL · {monthLabelShort(monthKey).toUpperCase()}</Text>
-          <Text style={styles.heroValue}>{money(grandTotal)}</Text>
-          <Text style={styles.heroSub}>
-            {entryCount} {entryCount === 1 ? 'expense' : 'expenses'} this month
-          </Text>
-        </View>
+        {data ? (
+          <>
+            <View style={styles.hero}>
+              <Caps>Spent in {monthLabel(data.month).split(' ')[0]}</Caps>
+              <View style={styles.heroRow}>
+                <Text style={styles.heroSymbol}>{ccy.symbol}</Text>
+                <Text style={type.hero} numberOfLines={1} adjustsFontSizeToFit>{grouped(total)}</Text>
+              </View>
+              {data.prevTotal > 0 ? (
+                <Text style={type.bodySoft}>
+                  <Text style={{ color: diff <= 0 ? colors.good : colors.bad, fontFamily: fonts.sansMedium }}>
+                    {diff <= 0 ? '↓' : '↑'} {ccy.symbol} {grouped(Math.abs(diff))}
+                  </Text>
+                  {diff <= 0 ? ' less' : ' more'} than {monthLabel(data.prevMonth).split(' ')[0]}
+                </Text>
+              ) : null}
+            </View>
 
-        <Card style={styles.panel}>
-          <SectionHeader title="By person" />
-          {lists.length === 0 ? (
-            <EmptyState icon="people-outline" title="No lists yet" />
-          ) : (
-            lists.map((l) => (
-              <PersonBar
-                key={l.id}
-                name={l.name}
-                type={l.type}
-                amount={l.total}
-                total={grandTotal}
-                onPress={() => navigation.navigate('ListDetail', { list: l })}
-              />
-            ))
-          )}
-        </Card>
+            <View style={styles.section}>
+              <View style={styles.sectionHead}>
+                <Caps>Lists</Caps>
+                <Pressable onPress={() => navigation.navigate('ManageLists')} hitSlop={8}>
+                  <Text style={styles.link}>Manage</Text>
+                </Pressable>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 20 }}>
+                {/* Biggest spend first, so this month's active lists are on screen. */}
+                {[...data.summary.lists].sort((a, b) => b.total - a.total).map((l) => (
+                  <Pressable
+                    key={l.id}
+                    onPress={() => navigation.navigate('ListDetail', { list: l })}
+                    style={({ pressed }) => [styles.listCol, pressed && { opacity: 0.6 }]}
+                  >
+                    <Text style={type.label} numberOfLines={1}>{l.name}</Text>
+                    <Text style={styles.listAmount}>{grouped(l.total)}</Text>
+                    {l.monthly_budget ? (
+                      <Text style={[styles.listSub, l.budget_remaining < 0 && { color: colors.bad }]}>
+                        {l.budget_remaining < 0 ? 'Over budget' : `${grouped(l.budget_remaining)} left`}
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
 
-        <Card style={styles.panel}>
-          <SectionHeader title="By category" />
-          <CategoryBreakdown data={byCategory} emptyHint="No spending recorded yet." />
-        </Card>
-
-        <Card style={styles.panel}>
-          <SectionHeader
-            title="Recent"
-            right={<Text style={styles.count}>{entries.length}</Text>}
-          />
-          {entries.length === 0 ? (
-            <EmptyState
-              icon="receipt-outline"
-              title="Nothing here yet"
-              subtitle="Tap + to add your first expense."
-            />
-          ) : (
-            entries.map((e) => (
-              <ExpenseItem
-                key={e.id}
-                entry={e}
-                onPress={() =>
-                  navigation.navigate('AddEntry', { entry: e, listId: e.spending_list_id })
-                }
-              />
-            ))
-          )}
-        </Card>
+            <View style={[styles.section, { paddingHorizontal: 20 }]}>
+              <Caps style={{ paddingBottom: 4 }}>Recent</Caps>
+              {data.recent.length ? (
+                data.recent.map((e, i) => (
+                  <EntryRow key={e.id} entry={e} last={i === data.recent.length - 1} onPress={() => openEntry(e)} />
+                ))
+              ) : (
+                <EmptyState icon="receipt-outline" title="Nothing yet this month" subtitle="Add your first expense below." />
+              )}
+            </View>
+          </>
+        ) : null}
       </ScrollView>
 
-      <Pressable style={styles.fab} onPress={() => setShowMenu(true)}>
-        <Ionicons name="add" size={30} color={colors.white} />
-      </Pressable>
+      <ActionBar>
+        <PrimaryAction title="Add expense" onPress={() => navigation.navigate('AddEntry', {})} />
+        {hasCar ? <SquareAction icon="car-outline" label="Fuel" onPress={() => navigation.navigate('Fuel')} /> : null}
+      </ActionBar>
 
-      <AddMenu
-        visible={showMenu}
-        onClose={() => setShowMenu(false)}
-        onFuel={() => {
-          setShowMenu(false);
-          navigation.navigate('FuelEntry', {});
-        }}
-        onExpense={() => {
-          setShowMenu(false);
-          navigation.navigate('AddEntry', {});
-        }}
-      />
+      <ShareSheet visible={shareOpen} onClose={() => setShareOpen(false)} />
     </View>
   );
 }
 
-function AddMenu({ visible, onClose, onFuel, onExpense }) {
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={menuStyles.backdrop} onPress={onClose}>
-        <Pressable style={menuStyles.sheet} onPress={() => {}}>
-          <Text style={menuStyles.title}>Add</Text>
-          <Pressable style={menuStyles.row} onPress={onFuel}>
-            <View style={[menuStyles.icon, { backgroundColor: `${colors.accent}1f` }]}>
-              <Ionicons name="car-sport" size={22} color={colors.accent} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={menuStyles.rowTitle}>Fuel</Text>
-              <Text style={menuStyles.rowSub}>Log a refill — rate, amount, odometer</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.inkSoft} />
-          </Pressable>
-          <View style={menuStyles.divider} />
-          <Pressable style={menuStyles.row} onPress={onExpense}>
-            <View style={[menuStyles.icon, { backgroundColor: `${colors.ink}11` }]}>
-              <Ionicons name="cart-outline" size={22} color={colors.ink} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={menuStyles.rowTitle}>Other expense</Text>
-              <Text style={menuStyles.rowSub}>Groceries, household, anything else</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={colors.inkSoft} />
-          </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
-const menuStyles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: colors.scrim, justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: colors.bg,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    padding: 18,
-    paddingBottom: 32,
-    borderTopWidth: 1,
-    borderColor: colors.rule,
-  },
-  title: { fontFamily: fonts.serifMediumItalic, fontSize: 22, color: colors.ink, marginBottom: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14 },
-  icon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  rowTitle: { fontFamily: fonts.sansSemibold, fontSize: 15, color: colors.ink },
-  rowSub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.inkSoft, marginTop: 2 },
-  divider: { height: 1, backgroundColor: colors.rule },
-});
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  body: { padding: 16, paddingBottom: 110 },
-  error: { color: colors.alarm, fontSize: 13, marginBottom: 10, fontFamily: fonts.sans },
-  hero: { alignItems: 'center', paddingVertical: 18 },
-  heroLabel: {
-    fontFamily: fonts.mono,
-    fontSize: 10.5,
-    letterSpacing: 2,
-    color: colors.inkSoft,
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingTop: 8,
   },
-  heroValue: {
-    fontFamily: fonts.serifMedium,
-    fontSize: 50,
-    color: colors.ink,
-    marginTop: 6,
-    letterSpacing: -1,
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sharePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 14,
+    borderRadius: 18, borderWidth: 1.5, borderColor: colors.ink,
   },
-  heroSub: { fontFamily: fonts.serifItalic, fontSize: 14, color: colors.inkSoft, marginTop: 4 },
-  panel: { marginTop: 4, marginBottom: 12, padding: 18 },
-  count: { fontFamily: fonts.mono, fontSize: 12, color: colors.inkSoft },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: colors.accent,
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
+  shareText: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.ink },
+  hero: { paddingHorizontal: 20, paddingTop: 36, paddingBottom: 28, gap: 6 },
+  heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  heroSymbol: { fontFamily: fonts.sansMedium, fontSize: 22, color: colors.inkSoft },
+  section: { paddingBottom: 28 },
+  sectionHead: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline',
+    paddingHorizontal: 20, paddingBottom: 14,
   },
+  link: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.ink },
+  listCol: { width: 112, paddingTop: 12, borderTopWidth: 3, borderTopColor: colors.ink, gap: 6 },
+  listAmount: { fontFamily: fonts.monoMedium, fontSize: 16, letterSpacing: -0.3, color: colors.ink },
+  listSub: { fontFamily: fonts.sans, fontSize: 12, color: colors.inkSoft },
 });

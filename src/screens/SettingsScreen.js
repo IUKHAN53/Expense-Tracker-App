@@ -2,18 +2,23 @@ import React, { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 import { getDb } from '../db';
 import { useBackupFlows } from '../backup/useBackupFlows';
-import { AppHeader } from '../components/Header';
-import { Card } from '../components/ui';
-import { colors, fonts, formatDate } from '../theme';
+import { useCurrency } from '../hooks/useMoney';
+import { Caps } from '../components/kit';
+import { ShareSheet } from '../components/ShareSheet';
+import { colors, fonts, formatDate, type } from '../theme';
 import { expo } from '../../app.json';
 
 export default function SettingsScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { currency } = useApp();
+  const ccy = useCurrency();
   const [lastBackup, setLastBackup] = useState(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const loadLastBackup = useCallback(() => {
     getDb().then((db) => db.settings.get('last_backup_at')).then(setLastBackup).catch(() => {});
@@ -23,94 +28,65 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.screen}>
-      <AppHeader title="Settings" />
-      <ScrollView contentContainerStyle={styles.body}>
-        <LinkRow
-          icon="shield-checkmark-outline"
-          title="Back up to a file"
-          sub={lastBackup ? `Last backup: ${formatDate(lastBackup)}` : 'No backup yet — do one now'}
-          onPress={startBackup}
-        />
-        <LinkRow
-          icon="cloud-download-outline"
-          title="Restore from a file"
-          sub="Replaces the data on this phone"
-          onPress={startRestore}
-        />
-        <LinkRow
-          icon="document-text-outline"
-          title="Export CSV"
-          sub="For spreadsheets (not encrypted)"
-          onPress={exportCsv}
-        />
-        <LinkRow
-          icon="list-outline"
-          title="Lists"
-          sub="People, household, vehicles"
-          onPress={() => navigation.navigate('ManageLists')}
-        />
-        <LinkRow
-          icon="pricetags-outline"
-          title="Categories"
-          sub="Tags for grouping expenses"
-          onPress={() => navigation.navigate('ManageCategories')}
-        />
-        <LinkRow
-          icon="cash-outline"
-          title="Currency"
-          sub={`${currency} · Tap to change`}
-          onPress={() => navigation.navigate('CurrencyPicker', { isChange: true })}
-        />
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}>
+        <Text style={[type.title, styles.title]}>Settings</Text>
 
-        <Card style={styles.infoRow}>
-          <Ionicons name="lock-closed-outline" size={20} color={colors.inkSoft} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.infoLabel}>Your data</Text>
-            <Text style={styles.infoValue}>Encrypted on this phone. No account, no server.</Text>
-          </View>
-        </Card>
-        <Card style={styles.infoRow}>
-          <Ionicons name="cube-outline" size={20} color={colors.inkSoft} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.infoLabel}>App version</Text>
-            <Text style={styles.infoValue}>{expo.version}</Text>
-          </View>
-        </Card>
+        <Group title="Your data">
+          <Row title="Back up to a file" value={lastBackup ? `Last: ${formatDate(lastBackup)}` : 'Never'} warn={!lastBackup} onPress={startBackup} />
+          <Row title="Restore from a file" onPress={startRestore} />
+          <Row title="Export CSV" onPress={exportCsv} last />
+        </Group>
+
+        <Group title="Privacy & app">
+          <Row title="Currency" value={`${currency} · ${ccy.symbol}`} onPress={() => navigation.navigate('CurrencyPicker', { isChange: true })} />
+          <Row title="Lists" onPress={() => navigation.navigate('ManageLists')} />
+          <Row title="Categories" onPress={() => navigation.navigate('ManageCategories')} />
+          <Row title="Share Kharcha" onPress={() => setShareOpen(true)} last />
+        </Group>
+
+        <View style={styles.foot}>
+          <Ionicons name="lock-closed-outline" size={16} color={colors.inkSoft} />
+          <Text style={styles.footText}>Encrypted on this phone. No account, no server.</Text>
+        </View>
+        <Text style={[styles.footText, { paddingHorizontal: 20, paddingTop: 6 }]}>Version {expo.version}</Text>
       </ScrollView>
       {ui}
+      <ShareSheet visible={shareOpen} onClose={() => setShareOpen(false)} />
     </View>
   );
 }
 
-function LinkRow({ icon, title, sub, onPress }) {
+function Group({ title, children }) {
+  return (
+    <View style={styles.group}>
+      <Caps style={{ paddingBottom: 4 }}>{title}</Caps>
+      {children}
+    </View>
+  );
+}
+
+function Row({ title, value, onPress, last, warn }) {
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.linkCard, pressed && styles.linkCardActive]}
+      accessibilityRole="button"
+      style={({ pressed }) => [styles.row, !last && styles.rule, pressed && { opacity: 0.6 }]}
     >
-      <Ionicons name={icon} size={20} color={colors.ink} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.linkTitle}>{title}</Text>
-        <Text style={styles.linkSub}>{sub}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color={colors.inkSoft} />
+      <Text style={styles.rowTitle}>{title}</Text>
+      {value ? <Text style={[styles.rowValue, warn && { color: colors.bad }]}>{value}</Text> : null}
+      <Ionicons name="chevron-forward" size={16} color={colors.muted} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  // paddingBottom clears the bottom tab bar.
-  body: { padding: 16, paddingBottom: 110 },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, marginBottom: 10 },
-  infoLabel: { fontFamily: fonts.mono, fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: colors.inkSoft },
-  infoValue: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.ink, marginTop: 3 },
-  linkCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 16, marginBottom: 10, borderRadius: 4,
-    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.rule,
-  },
-  linkCardActive: { backgroundColor: 'rgba(201,98,31,0.06)' },
-  linkTitle: { fontFamily: fonts.sansMedium, fontSize: 15, color: colors.ink },
-  linkSub: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.inkSoft, marginTop: 2 },
+  title: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 20 },
+  group: { paddingHorizontal: 20, paddingBottom: 20 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 56 },
+  rule: { borderBottomWidth: 1, borderBottomColor: colors.rule },
+  rowTitle: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 16, color: colors.ink },
+  rowValue: { fontFamily: fonts.sans, fontSize: 14, color: colors.inkSoft },
+  foot: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingTop: 8 },
+  footText: { fontFamily: fonts.sans, fontSize: 13, color: colors.inkSoft },
 });

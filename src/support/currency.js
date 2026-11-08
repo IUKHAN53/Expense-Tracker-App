@@ -1,6 +1,5 @@
-// Supported currencies + symbol metadata. The mobile UI never invents
-// new currency codes; the backend's Account::SUPPORTED_CURRENCIES list
-// must stay in sync with this one.
+// Supported currencies + symbol metadata. The app never invents new
+// currency codes; backups only restore codes from this list's format.
 export const CURRENCIES = [
   { code: 'USD', name: 'US Dollar',         symbol: '$',    locale: 'en-US' },
   { code: 'EUR', name: 'Euro',              symbol: '€',    locale: 'en-IE' },
@@ -29,6 +28,12 @@ export function money(value, code = 'USD') {
   const neg = v < 0;
   const abs = Math.abs(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return `${neg ? '-' : ''}${c.symbol} ${abs}`;
+}
+
+/** Whole number with thousands separators, no symbol: grouped(84250.4) -> "84,250". */
+export function grouped(value) {
+  const v = Math.round(Number(value) || 0);
+  return `${v < 0 ? '-' : ''}${Math.abs(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 }
 
 /** Compact form: moneyShort(142860, 'PKR') -> "Rs 143k". */

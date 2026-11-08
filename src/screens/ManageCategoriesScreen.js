@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AppHeader } from '../components/Header';
 import { Button, Card, KLabel, TextField } from '../components/ui';
 import { getDb } from '../db';
 import { errorMessage } from '../support/errors';
@@ -94,10 +93,9 @@ export default function ManageCategoriesScreen() {
 
   return (
     <View style={styles.screen}>
-      <AppHeader title="Categories" />
       <ScrollView
         contentContainerStyle={styles.body}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.ink} />}
       >
         {error ? (
           <Card style={styles.errBanner}>

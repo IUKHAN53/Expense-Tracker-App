@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#fdf8ee",
+    "backgroundColor": "#FFFFFF",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.iukhan.kharcha"
@@ -16,7 +16,7 @@
       "package": "com.iukhan.kharcha",
       "allowBackup": false,
       "adaptiveIcon": {
-        "backgroundColor": "#2b1f12",
+        "backgroundColor": "#111111",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -40,9 +40,9 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",
-          "imageWidth": 180,
+          "imageWidth": 120,
           "resizeMode": "contain",
-          "backgroundColor": "#fdf8ee"
+          "backgroundColor": "#FFFFFF"
         }
       ],
       [

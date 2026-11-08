@@ -1,5 +1,5 @@
 // Device side of backups: writes/reads files and opens the share sheet.
-import { File, Paths } from 'expo-file-system';
+import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Crypto from 'expo-crypto';
@@ -21,11 +21,26 @@ async function shareText(name, text, mimeType, dialogTitle) {
   await Sharing.shareAsync(file.uri, { mimeType, dialogTitle });
 }
 
-export async function shareBackup(password) {
+/**
+ * Encrypt and write the backup into a folder the user picks (Android's folder
+ * picker: Downloads, SD card, …). Unlike the share sheet, this tells us whether
+ * the file was really saved, so "Last backup" is only updated on success.
+ * @returns the folder name, or null if the user cancelled the picker.
+ */
+export async function saveBackup(password) {
+  let dir;
+  try {
+    dir = await Directory.pickDirectoryAsync();
+  } catch (e) {
+    if (/cancel/i.test(e?.message || '')) return null;
+    throw e;
+  }
   const db = await getDb();
   const text = await encryptBackup(await db.exportAll(), password, Crypto.getRandomBytes);
-  await shareText(`kharcha-backup-${today()}.kharcha`, text, 'application/octet-stream', 'Save your Kharcha backup');
+  const file = dir.createFile(`kharcha-backup-${today()}-${Date.now() % 100000}.kharcha`, 'application/octet-stream');
+  file.write(text);
   await db.settings.set('last_backup_at', new Date().toISOString());
+  return decodeURIComponent(dir.uri).split(/[/:]/).filter(Boolean).pop() || 'the folder';
 }
 
 export async function shareCsv() {

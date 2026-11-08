@@ -1,146 +1,109 @@
 import React, { useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
 import { CURRENCIES } from '../support/currency';
 import { errorMessage } from '../support/errors';
 import { Mark } from '../components/Logo';
+import { Caps } from '../components/kit';
 import { useToast } from '../components/Toast';
 import { useBackupFlows } from '../backup/useBackupFlows';
-import { colors, fonts } from '../theme';
+import { colors, fonts, type } from '../theme';
 
 /**
- * First-launch / change-currency picker. Shown until a currency is
- * saved; also reachable from Settings. Saves to the local settings table
- * via AppContext.setCurrency; RootNavigator then drops the picker
- * and routes into the Tabs stack.
+ * First launch = onboarding (brand, promise, currency, restore link).
+ * From Settings (isChange) = the same chips to switch currency.
+ * Saving sets the currency in local settings; RootNavigator then moves
+ * from the setup stack into the app.
  */
 export default function CurrencyPickerScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
   const { currency, setCurrency } = useApp();
   const toast = useToast();
-  const initial = currency || null;
-  const [selected, setSelected] = useState(initial);
+  const isChange = route?.params?.isChange === true;
+  const [selected, setSelected] = useState(currency || null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-
-  const isChange = route?.params?.isChange === true;
-  // Onboarding only: restoring a backup also restores its currency, which
-  // flips RootNavigator into the app.
+  // Restoring a backup also restores its currency, which leaves onboarding.
   const { startRestore, ui } = useBackupFlows();
 
   const onSave = async () => {
-    if (!selected) {
-      setError('Pick a currency first.');
-      return;
-    }
-    if (selected === initial) {
-      // Nothing to do — but if we're in change mode, just navigate back.
-      if (isChange && navigation?.canGoBack()) navigation.goBack();
+    if (!selected) return setError('Pick a currency first.');
+    if (selected === currency) {
+      if (navigation.canGoBack()) navigation.goBack();
       return;
     }
     setBusy(true);
     setError('');
     try {
       await setCurrency(selected);
-      toast.success(`Currency set to ${selected}.`);
-      if (isChange && navigation?.canGoBack()) {
+      if (isChange) {
+        toast.success(`Currency set to ${selected}.`);
         navigation.goBack();
       }
-      // Otherwise: RootNavigator sees a currency is now set and
-      // swaps the picker stack for the Tabs stack automatically.
     } catch (e) {
       setError(errorMessage(e, 'Could not save your currency. Try again.'));
-    } finally {
       setBusy(false);
     }
   };
 
   return (
-    <View style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.body}>
-        {!isChange && (
-          <View style={styles.brand}>
-            <Mark size={48} />
-            <Text style={styles.wordmark}>Pick your currency</Text>
-            <Text style={styles.tagline}>One-time setup</Text>
+    <View style={[styles.screen, { paddingTop: isChange ? 0 : insets.top }]}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+        {isChange ? (
+          <Text style={[type.bodySoft, styles.pad, { paddingTop: 16, paddingBottom: 24 }]}>
+            Amounts keep their numbers — they’re relabelled, not converted.
+          </Text>
+        ) : (
+          <View style={[styles.pad, styles.intro]}>
+            <Mark size={72} />
+            <Text style={styles.headline}>Every expense, written down.</Text>
+            <Text style={[type.bodySoft, { fontSize: 16, lineHeight: 24 }]}>
+              No account, no sign-up. Everything stays encrypted on this phone.
+            </Text>
           </View>
         )}
 
-        <Text style={styles.lede}>
-          {isChange
-            ? 'Change the currency Kharcha displays. Existing amounts will be relabelled, not converted.'
-            : 'How should Kharcha display amounts in your ledger? You can change this any time from Settings.'}
-        </Text>
-
-        <View style={styles.list}>
-          {CURRENCIES.map((c) => {
-            const on = selected === c.code;
-            return (
-              <Pressable
-                key={c.code}
-                onPress={() => setSelected(c.code)}
-                style={({ pressed }) => [
-                  styles.row,
-                  on && styles.rowOn,
-                  pressed && styles.rowPressed,
-                ]}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: on }}
-              >
-                <View style={styles.symbolPill}>
-                  <Text style={styles.symbol}>{c.symbol}</Text>
-                </View>
-                <View style={styles.rowMain}>
-                  <Text style={styles.rowCode}>{c.code}</Text>
-                  <Text style={styles.rowName}>{c.name}</Text>
-                </View>
-                {on && <Ionicons name="checkmark" size={20} color={colors.accent} />}
-              </Pressable>
-            );
-          })}
+        <View style={[styles.pad, { gap: 12 }]}>
+          <Caps>Your currency</Caps>
+          <View style={styles.wrap}>
+            {CURRENCIES.map((c) => {
+              const on = selected === c.code;
+              return (
+                <Pressable
+                  key={c.code}
+                  onPress={() => setSelected(c.code)}
+                  style={[styles.chip, on ? styles.chipOn : styles.chipOff]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={c.name}
+                >
+                  <Text style={[styles.sym, on && { color: colors.primary }]}>{c.symbol}</Text>
+                  <Text style={[styles.code, on && { color: colors.white }]}>{c.code}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
+      </ScrollView>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
+      <View style={[styles.bottom, { paddingBottom: 24 + insets.bottom }]}>
         <Pressable
           onPress={onSave}
           disabled={busy || !selected}
-          style={({ pressed }) => [
-            styles.cta,
-            (busy || !selected) && styles.ctaDisabled,
-            pressed && styles.ctaPressed,
-          ]}
+          style={({ pressed }) => [styles.cta, (busy || !selected) && { opacity: 0.45 }, pressed && { opacity: 0.85 }]}
         >
-          {busy ? (
-            <ActivityIndicator color={colors.card || '#fdf8ee'} />
-          ) : (
-            <>
-              <Text style={styles.ctaText}>{isChange ? 'Save change' : 'Continue'}</Text>
-              <Text style={styles.ctaArrow}>→</Text>
-            </>
-          )}
+          <Text style={styles.ctaText}>{busy ? 'Saving…' : isChange ? 'Save change' : 'Start tracking'}</Text>
         </Pressable>
-
-        {!isChange && (
-          <>
-            <Text style={styles.footer}>
-              Tip: pick the currency you most often see in receipts and on the price tag. You can change later.
+        {!isChange ? (
+          <Pressable onPress={startRestore} hitSlop={8} accessibilityRole="button">
+            <Text style={styles.restore}>
+              Have a backup? <Text style={styles.restoreLink}>Restore it</Text>
             </Text>
-            <Pressable onPress={startRestore} style={styles.restore} accessibilityRole="button">
-              <Text style={styles.restoreText}>
-                Have a backup? <Text style={styles.restoreLink}>Restore it</Text>
-              </Text>
-            </Pressable>
-          </>
-        )}
-      </ScrollView>
+          </Pressable>
+        ) : null}
+      </View>
       {ui}
     </View>
   );
@@ -148,77 +111,22 @@ export default function CurrencyPickerScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  restore: { marginTop: 22, paddingVertical: 10, alignItems: 'center' },
-  restoreText: { fontFamily: fonts.sans, fontSize: 14, color: colors.inkSoft },
-  restoreLink: { fontFamily: fonts.sansMedium, color: colors.ink, textDecorationLine: 'underline' },
-  body: { padding: 26, paddingBottom: 60 },
-
-  brand: { alignItems: 'center', marginBottom: 22 },
-  wordmark: {
-    fontFamily: fonts.serifMediumItalic, fontSize: 28, color: colors.ink,
-    marginTop: 12, letterSpacing: -0.5, textAlign: 'center',
-  },
-  tagline: {
-    fontFamily: fonts.mono, fontSize: 10.5, letterSpacing: 2,
-    textTransform: 'uppercase', color: colors.inkSoft,
-    marginTop: 6, textAlign: 'center',
-  },
-
-  lede: {
-    fontFamily: fonts.serifItalic || fonts.serifMediumItalic,
-    fontSize: 16, color: colors.inkSoft, lineHeight: 22,
-    marginBottom: 22, textAlign: 'center', maxWidth: 360, alignSelf: 'center',
-  },
-
-  list: {
-    backgroundColor: colors.card,
-    borderRadius: 4,
-    borderWidth: 1, borderColor: colors.rule || '#e8dcc1',
-    overflow: 'hidden',
-    marginBottom: 18,
-  },
-  row: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    paddingHorizontal: 16, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: colors.rule || '#e8dcc1',
-  },
-  rowOn: { backgroundColor: 'rgba(201,98,31,0.06)' },
-  rowPressed: { backgroundColor: 'rgba(201,98,31,0.10)' },
-  symbolPill: {
-    width: 44, height: 36, borderRadius: 2,
-    backgroundColor: colors.bg,
-    borderWidth: 1, borderColor: colors.rule || '#e8dcc1',
+  pad: { paddingHorizontal: 24 },
+  intro: { gap: 20, paddingTop: 56, paddingBottom: 40 },
+  headline: { fontFamily: fonts.display, fontSize: 44, lineHeight: 46, letterSpacing: -2.2, color: colors.ink },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 16, borderRadius: 22 },
+  chipOn: { backgroundColor: colors.ink },
+  chipOff: { borderWidth: 1.5, borderColor: colors.rule },
+  sym: { fontFamily: fonts.monoMedium, fontSize: 14, color: colors.inkSoft },
+  code: { fontFamily: fonts.sansMedium, fontSize: 15, color: colors.ink },
+  error: { fontFamily: fonts.sans, fontSize: 14, color: colors.bad },
+  bottom: { paddingHorizontal: 24, paddingTop: 16, gap: 16, alignItems: 'center' },
+  cta: {
+    alignSelf: 'stretch', height: 56, borderRadius: 14, backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
-  symbol: { fontFamily: fonts.serifMediumItalic, fontSize: 16, color: colors.ink },
-  rowMain: { flex: 1 },
-  rowCode: { fontFamily: fonts.mono, fontSize: 13, letterSpacing: 1.5, color: colors.ink },
-  rowName: { fontFamily: fonts.sans, fontSize: 13, color: colors.inkSoft, marginTop: 2 },
-
-  error: {
-    color: colors.alarm, fontSize: 13, fontFamily: fonts.sans,
-    textAlign: 'center', marginBottom: 12,
-  },
-
-  cta: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 12, paddingVertical: 16, paddingHorizontal: 22,
-    backgroundColor: colors.ink, borderRadius: 2, minHeight: 52,
-  },
-  ctaDisabled: { opacity: 0.45 },
-  ctaPressed: { transform: [{ scale: 0.97 }] },
-  ctaText: {
-    fontFamily: fonts.sansMedium, fontSize: 15,
-    color: colors.card || '#fdf8ee', letterSpacing: 0.3,
-  },
-  ctaArrow: {
-    fontFamily: fonts.mono, fontSize: 14,
-    color: colors.card || '#fdf8ee',
-  },
-
-  footer: {
-    fontFamily: fonts.sans, fontSize: 12,
-    color: colors.inkFaint || colors.inkSoft,
-    textAlign: 'center', marginTop: 18, lineHeight: 18,
-  },
+  ctaText: { fontFamily: fonts.display, fontSize: 17, letterSpacing: -0.3, color: colors.ink },
+  restore: { fontFamily: fonts.sans, fontSize: 14, color: colors.inkSoft },
+  restoreLink: { fontFamily: fonts.sansMedium, color: colors.ink, textDecorationLine: 'underline' },
 });

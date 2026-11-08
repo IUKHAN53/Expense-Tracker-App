@@ -1,35 +1,26 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import Svg, { Circle, Line, Polyline } from 'react-native-svg';
 import { getDb } from '../db';
 import { errorMessage } from '../support/errors';
-import { AppHeader } from '../components/Header';
-import { Card, EmptyState, Loading } from '../components/ui';
-import { colors, fonts, formatDate } from '../theme';
-import { useCurrency, useMoney } from '../hooks/useMoney';
+import { grouped } from '../support/currency';
 import { on, EVENTS } from '../support/events';
+import { colors, currentMonthKey, fonts, shiftMonth, type } from '../theme';
+import { useCurrency } from '../hooks/useMoney';
+import { ActionBar, Caps, PrimaryAction } from '../components/kit';
+import { EmptyState, Loading } from '../components/ui';
 
-/** "2026.05.10" — matches the CarExpenses layout. */
-function ymdDot(iso) {
-  if (!iso) return '';
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const monthOf = (iso) => {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}`;
-}
-
-function nfmt(n) {
-  return (n ?? 0).toLocaleString('en-US');
-}
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
 
 export default function FuelScreen({ navigation }) {
-  const money = useMoney();
+  const ccy = useCurrency();
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -38,331 +29,148 @@ export default function FuelScreen({ navigation }) {
     } catch (e) {
       setError(errorMessage(e));
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load]),
-  );
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useEffect(() => on(EVENTS.ENTRIES_CHANGED, load), [load]);
 
-  useEffect(() => {
-    const off = on(EVENTS.ENTRIES_CHANGED, load);
-    return off;
-  }, [load]);
+  // Last 6 months of fuel spend, oldest first.
+  const chart = useMemo(() => {
+    if (!data) return [];
+    const now = currentMonthKey();
+    const keys = Array.from({ length: 6 }, (_, i) => shiftMonth(now, i - 5));
+    const sums = Object.fromEntries(keys.map((k) => [k, 0]));
+    for (const r of data.records) {
+      const k = monthOf(r.date);
+      if (k in sums) sums[k] += r.amount;
+    }
+    return keys.map((k) => ({ key: k, label: MONTHS[Number(k.slice(5)) - 1], value: sums[k] }));
+  }, [data]);
 
-  if (loading) {
-    return (
-      <View style={styles.screen}>
-        <AppHeader title="Fuel" />
-        <Loading label="Loading fuel records…" />
-      </View>
-    );
-  }
+  const perKm = useMemo(() => {
+    const v = (data?.records || []).map((r) => r.rs_per_km).filter((x) => x > 0).slice(0, 5);
+    return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null;
+  }, [data]);
 
-  const stats = (data && data.stats) || {};
-  const records = (data && data.records) || [];
+  if (!data && !error) return <Loading />;
+
+  const s = data?.stats;
+  const trend = s?.avg_km_per_liter != null && s?.avg_km_per_liter_all_time != null
+    ? Math.round((s.avg_km_per_liter - s.avg_km_per_liter_all_time) * 10) / 10 : 0;
+  const max = Math.max(...chart.map((c) => c.value), 1);
+  const thisMonth = chart.at(-1)?.value || 0;
 
   return (
     <View style={styles.screen}>
-      <AppHeader title="Fuel" />
       <ScrollView
-        contentContainerStyle={styles.body}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              load();
-            }}
-            tintColor={colors.accent}
-          />
-        }
+        contentContainerStyle={{ paddingBottom: 140 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.ink} />}
       >
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? <EmptyState icon="alert-circle-outline" title="Couldn’t load" subtitle={error} /> : null}
 
-        <View style={styles.hero}>
-          <Text style={styles.heroLabel}>AVERAGE · {(stats.avg_window || '').toUpperCase()}</Text>
-          <View style={styles.heroValueRow}>
-            <Text style={styles.heroValue}>
-              {stats.avg_km_per_liter != null ? stats.avg_km_per_liter.toFixed(2) : '—'}
-            </Text>
-            <Text style={styles.heroUnit}>km/L</Text>
-          </View>
-          {stats.avg_km_per_liter_all_time != null ? (
-            <Text style={styles.heroSub}>
-              All-time {stats.avg_km_per_liter_all_time.toFixed(2)} km/L · {stats.total_records} fills
-            </Text>
-          ) : null}
-        </View>
-
-        <View style={styles.statGrid}>
-          <StatTile
-            label="This month spent"
-            value={money(stats.month_spent || 0)}
-            sub={`${(stats.month_liters || 0).toFixed(2)} L`}
-          />
-          <StatTile
-            label="This month km"
-            value={nfmt(stats.month_kms || 0)}
-            sub="distance"
-          />
-          <StatTile
-            label="Last fill"
-            value={stats.last_odometer ? nfmt(stats.last_odometer) : '—'}
-            sub={stats.last_fill_date ? formatDate(stats.last_fill_date) : ''}
-          />
-          <StatTile
-            label="Lifetime spent"
-            value={money(stats.all_time_spent || 0)}
-            sub={`${(stats.all_time_liters || 0).toFixed(0)} L total`}
-          />
-        </View>
-
-        {records.length >= 3 ? (
-          <KmplChart records={[...records].reverse().slice(-14)} />
-        ) : null}
-
-        <View style={styles.recordsHead}>
-          <Text style={styles.recordsTitle}>Refills</Text>
-          <Text style={styles.recordsCount}>{records.length}</Text>
-        </View>
-        {records.length === 0 ? (
-          <EmptyState
-            icon="car-sport-outline"
-            title="No fuel records yet"
-            subtitle="Tap + to log your first refill."
-          />
-        ) : (
-          records.map((r) => (
-            <FuelCard
-              key={r.id}
-              record={r}
-              onPress={() => navigation.navigate('FuelEntry', { entry: r })}
-            />
-          ))
-        )}
-      </ScrollView>
-
-      <Pressable style={styles.fab} onPress={() => navigation.navigate('FuelEntry', {})}>
-        <Ionicons name="add" size={30} color={colors.white} />
-      </Pressable>
-    </View>
-  );
-}
-
-function StatTile({ label, value, sub }) {
-  return (
-    <View style={styles.statTile}>
-      <Text style={styles.statLabel}>{label.toUpperCase()}</Text>
-      <Text style={styles.statValue} numberOfLines={1}>{value}</Text>
-      {sub ? <Text style={styles.statSub} numberOfLines={1}>{sub}</Text> : null}
-    </View>
-  );
-}
-
-/**
- * Two-column refill card, modelled on the CarExpenses layout:
- *   left  — date / E92 + Rs/L / Rs/km / km/L
- *   right — odometer (+km) / total Rs / litres / Full|Partial
- */
-function FuelCard({ record, onPress }) {
-  const money = useMoney();
-  const ccy = useCurrency();
-  const dim = (v) => (v == null ? '—' : v);
-  return (
-    <Pressable onPress={onPress}>
-      <Card style={styles.recordCard}>
-        <View style={styles.recordRow}>
-          <View style={styles.fuelIcon}>
-            <MaterialCommunityIcons name="gas-station" size={22} color={colors.white} />
-          </View>
-
-          {/* Left column */}
-          <View style={styles.recordLeft}>
-            <Text style={styles.recordDate}>{ymdDot(record.date)}</Text>
-            <View style={styles.inlineRow}>
-              <Text style={styles.fuelTypeText}>{record.fuel_type || 'E92'}</Text>
-              <Text style={styles.recordMeta}>
-                {' '}
-                {record.rate != null ? `${record.rate.toFixed(2)} ${ccy.symbol}/L` : ''}
+        {data ? (
+          <>
+            <View style={styles.hero}>
+              <Caps>Average · {s.avg_window}</Caps>
+              <View style={styles.heroRow}>
+                <Text style={type.hero}>{s.avg_km_per_liter ?? '—'}</Text>
+                <Text style={styles.unit}>km/L</Text>
+              </View>
+              <Text style={type.bodySoft}>
+                {perKm ? `${ccy.symbol} ${perKm.toFixed(1)} per km` : 'Add two refills with odometer readings to see km/L'}
+                {trend ? (
+                  <Text style={{ color: trend > 0 ? colors.good : colors.bad, fontFamily: fonts.sansMedium }}>
+                    {`  ${trend > 0 ? '↑' : '↓'} ${Math.abs(trend)} km/L`}
+                  </Text>
+                ) : null}
+                {trend ? ' vs your average' : ''}
               </Text>
             </View>
-            <Text style={styles.recordMeta}>
-              {record.rs_per_km != null ? `${record.rs_per_km.toFixed(2)} ${ccy.symbol}/km` : '—'}
-            </Text>
-            <Text style={styles.recordKmpl}>
-              {record.km_per_liter != null ? `${record.km_per_liter.toFixed(2)} km/L` : '—'}
-            </Text>
-          </View>
 
-          {/* Right column */}
-          <View style={styles.recordRight}>
-            <Text style={styles.recordOdo}>
-              {dim(record.odometer != null ? nfmt(record.odometer) : null)} km
-              {record.km_since_last != null ? (
-                <Text style={styles.recordOdoDelta}> (+{nfmt(record.km_since_last)})</Text>
-              ) : null}
-            </Text>
-            <Text style={styles.recordAmount}>{money(record.amount)}</Text>
-            <Text style={styles.recordLiters}>{record.liters.toFixed(2)} L</Text>
-            <Text style={[styles.recordTopUp, !record.is_full_tank && styles.recordPartial]}>
-              {record.is_full_tank ? 'FULL' : 'PARTIAL'}
-            </Text>
-          </View>
-        </View>
-        {record.notes && !record.notes.startsWith('Imported from CarExpenses') ? (
-          <Text style={styles.recordNote} numberOfLines={2}>{record.notes}</Text>
+            <View style={styles.section}>
+              <View style={styles.chart}>
+                {chart.map((c, i) => (
+                  <View
+                    key={c.key}
+                    style={[
+                      styles.bar,
+                      { height: Math.max((c.value / max) * 96, c.value ? 4 : 0) },
+                      i === chart.length - 1 ? { backgroundColor: colors.ink } : null,
+                    ]}
+                  />
+                ))}
+              </View>
+              <View style={styles.chartLabels}>
+                {chart.map((c, i) => (
+                  <Text key={c.key} style={[styles.chartLabel, i === chart.length - 1 && { color: colors.ink, fontFamily: fonts.sansMedium }]}>
+                    {c.label}
+                  </Text>
+                ))}
+              </View>
+              <Text style={styles.small}>
+                Fuel spend per month · this month so far <Text style={styles.mono}>{ccy.symbol} {grouped(thisMonth)}</Text>
+              </Text>
+            </View>
+
+            <View style={{ paddingHorizontal: 20 }}>
+              <Caps style={{ paddingBottom: 4 }}>Refills</Caps>
+              {data.records.length ? data.records.map((r, i) => {
+                const d = new Date(r.date);
+                return (
+                  <Pressable
+                    key={r.id}
+                    onPress={() => navigation.navigate('FuelEntry', { entry: r })}
+                    style={({ pressed }) => [styles.row, i < data.records.length - 1 && styles.rule, pressed && { opacity: 0.6 }]}
+                  >
+                    <View style={styles.date}>
+                      <Text style={styles.day}>{d.getDate()}</Text>
+                      <Caps style={{ fontSize: 11 }}>{MONTHS[d.getMonth()]}</Caps>
+                    </View>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={type.label}>{r.liters} L · {r.fuel_type}</Text>
+                      <Text style={styles.small} numberOfLines={1}>
+                        {[r.odometer != null && `${grouped(r.odometer)} km`, r.km_per_liter && `${r.km_per_liter} km/L`]
+                          .filter(Boolean).join(' · ') || (r.notes || 'No odometer reading')}
+                      </Text>
+                    </View>
+                    <Text style={styles.amount}>{grouped(r.amount)}</Text>
+                  </Pressable>
+                );
+              }) : (
+                <EmptyState icon="car-outline" title="No refills yet" subtitle="Log one with the button below." />
+              )}
+            </View>
+          </>
         ) : null}
-      </Card>
-    </Pressable>
-  );
-}
+      </ScrollView>
 
-function KmplChart({ records }) {
-  const series = records.filter((r) => r.km_per_liter != null && r.km_per_liter > 0);
-  if (series.length < 2) return null;
-
-  const W = 320;
-  const H = 110;
-  const padX = 14;
-  const padY = 16;
-  const values = series.map((s) => s.km_per_liter);
-  const min = Math.min(...values) * 0.92;
-  const max = Math.max(...values) * 1.08;
-  const stepX = (W - padX * 2) / (values.length - 1);
-  const yFor = (v) => H - padY - ((v - min) / Math.max(max - min, 0.0001)) * (H - padY * 2);
-  const points = values.map((v, i) => `${padX + i * stepX},${yFor(v)}`).join(' ');
-  const avg = values.reduce((a, b) => a + b, 0) / values.length;
-
-  return (
-    <Card style={styles.chartCard}>
-      <View style={styles.chartHeader}>
-        <Text style={styles.chartTitle}>km/L · last {values.length} fills</Text>
-        <Text style={styles.chartAvg}>avg {avg.toFixed(2)}</Text>
-      </View>
-      <Svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`}>
-        <Line x1={padX} y1={H - padY} x2={W - padX} y2={H - padY} stroke={colors.rule} strokeWidth="1" />
-        <Line
-          x1={padX}
-          y1={yFor(avg)}
-          x2={W - padX}
-          y2={yFor(avg)}
-          stroke={colors.inkSoft}
-          strokeWidth="0.75"
-          strokeDasharray="3 4"
-          opacity={0.5}
-        />
-        <Polyline
-          points={points}
-          fill="none"
-          stroke={colors.accent}
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {values.map((v, i) => (
-          <Circle key={i} cx={padX + i * stepX} cy={yFor(v)} r="2.8" fill={colors.accent} />
-        ))}
-      </Svg>
-    </Card>
+      <ActionBar>
+        <PrimaryAction title="Add refill" onPress={() => navigation.navigate('FuelEntry', {})} />
+      </ActionBar>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  body: { padding: 16, paddingBottom: 110 },
-  error: { color: colors.alarm, fontSize: 13, marginBottom: 10, fontFamily: fonts.sans },
-  hero: { alignItems: 'center', paddingVertical: 14 },
-  heroLabel: { fontFamily: fonts.mono, fontSize: 10, letterSpacing: 1.8, color: colors.inkSoft },
-  heroValueRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: 4, gap: 6 },
-  heroValue: {
-    fontFamily: fonts.serifMedium,
-    fontSize: 56,
-    color: colors.ink,
-    letterSpacing: -1.5,
-    lineHeight: 56,
+  hero: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24, gap: 6 },
+  heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  unit: { fontFamily: fonts.sansMedium, fontSize: 22, color: colors.inkSoft },
+  section: { paddingHorizontal: 20, paddingBottom: 28, gap: 8 },
+  chart: {
+    flexDirection: 'row', alignItems: 'flex-end', gap: 10, height: 96,
+    borderBottomWidth: 1.5, borderBottomColor: colors.ink,
   },
-  heroUnit: { fontFamily: fonts.serifItalic, fontSize: 18, color: colors.inkSoft, marginBottom: 8 },
-  heroSub: { fontFamily: fonts.serifItalic, fontSize: 13, color: colors.inkSoft, marginTop: 4 },
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -5, marginTop: 6 },
-  statTile: { width: '50%', paddingHorizontal: 5, paddingVertical: 5 },
-  statLabel: { fontFamily: fonts.mono, fontSize: 9.5, letterSpacing: 1.3, color: colors.inkSoft },
-  statValue: {
-    fontFamily: fonts.serifMedium,
-    fontSize: 22,
-    color: colors.ink,
-    marginTop: 4,
-    letterSpacing: -0.5,
-  },
-  statSub: { fontFamily: fonts.sans, fontSize: 11.5, color: colors.inkSoft, marginTop: 2 },
-
-  chartCard: { padding: 14, marginTop: 14, marginBottom: 8 },
-  chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  chartTitle: { fontFamily: fonts.serifMediumItalic, fontSize: 15, color: colors.ink },
-  chartAvg: { fontFamily: fonts.mono, fontSize: 11, color: colors.inkSoft },
-
-  recordsHead: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 18,
-    marginBottom: 8,
-  },
-  recordsTitle: { fontFamily: fonts.serifMediumItalic, fontSize: 19, color: colors.ink },
-  recordsCount: { fontFamily: fonts.mono, fontSize: 12, color: colors.inkSoft },
-
-  recordCard: { padding: 14, marginBottom: 10 },
-  recordRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  fuelIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
-  recordLeft: { flex: 1 },
-  recordRight: { alignItems: 'flex-end' },
-  recordDate: { fontFamily: fonts.sansMedium, fontSize: 17, color: colors.ink, letterSpacing: 0 },
-  inlineRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: 3 },
-  fuelTypeText: { fontFamily: fonts.monoMedium, fontSize: 12, color: colors.accent, letterSpacing: 0.5 },
-  recordMeta: { fontFamily: fonts.mono, fontSize: 12.5, color: colors.inkSoft, marginTop: 2 },
-  recordKmpl: { fontFamily: fonts.monoMedium, fontSize: 13, color: colors.ink, marginTop: 3 },
-  recordOdo: { fontFamily: fonts.sansMedium, fontSize: 15, color: colors.ink },
-  recordOdoDelta: { fontFamily: fonts.mono, fontSize: 12, color: colors.inkSoft },
-  recordAmount: { fontFamily: fonts.monoMedium, fontSize: 14.5, color: colors.ink, marginTop: 3 },
-  recordLiters: { fontFamily: fonts.mono, fontSize: 13, color: colors.inkSoft, marginTop: 2 },
-  recordTopUp: { fontFamily: fonts.mono, fontSize: 10.5, color: colors.accent2, letterSpacing: 1, marginTop: 3 },
-  recordPartial: { color: colors.inkSoft },
-  recordNote: {
-    fontFamily: fonts.serifItalic,
-    fontSize: 12.5,
-    color: colors.inkSoft,
-    marginTop: 10,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: colors.rule,
-  },
-
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: colors.accent,
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-  },
+  bar: { flex: 1, borderTopLeftRadius: 4, borderTopRightRadius: 4, backgroundColor: '#D9D9D9' },
+  chartLabels: { flexDirection: 'row', gap: 10 },
+  chartLabel: { flex: 1, textAlign: 'center', fontFamily: fonts.sans, fontSize: 12, color: colors.inkSoft },
+  small: { fontFamily: fonts.sans, fontSize: 13, color: colors.inkSoft },
+  mono: { fontFamily: fonts.mono, color: colors.ink },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
+  rule: { borderBottomWidth: 1, borderBottomColor: colors.rule },
+  date: { width: 44, flexShrink: 0, alignItems: 'center' },
+  day: { fontFamily: fonts.display, fontSize: 18, color: colors.ink },
+  amount: { ...type.amount, width: 80, textAlign: 'right', flexShrink: 0 },
 });

@@ -5,7 +5,7 @@ import { useToast } from '../components/Toast';
 import { useApp } from '../context/AppContext';
 import { emit, EVENTS } from '../support/events';
 import { errorMessage } from '../support/errors';
-import { openBackup, pickBackupFile, restoreSnapshot, shareBackup, shareCsv } from './index';
+import { openBackup, pickBackupFile, restoreSnapshot, saveBackup, shareCsv } from './index';
 
 /**
  * Backup / restore / CSV flows shared by Settings and onboarding.
@@ -19,9 +19,13 @@ export function useBackupFlows({ onBackedUp } = {}) {
   const startBackup = () => setSheet({
     mode: 'create',
     onSubmit: async (password) => {
-      await shareBackup(password);
+      const folder = await saveBackup(password);
       setSheet(null);
-      toast.success('Backup file created.');
+      if (!folder) {
+        toast.info('Backup not saved.');
+        return;
+      }
+      toast.success(`Backup saved to ${folder}.`);
       onBackedUp?.();
     },
   });

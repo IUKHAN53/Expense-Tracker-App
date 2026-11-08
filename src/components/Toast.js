@@ -91,7 +91,7 @@ export function ToastProvider({ children }) {
       {toast ? (
         <View
           pointerEvents="box-none"
-          style={[styles.overlay, { paddingBottom: insets.bottom + 70 }]}
+          style={[styles.overlay, { paddingBottom: insets.bottom + 104 }]}
         >
           <Animated.View style={{ opacity, transform: [{ translateY }], width: '100%' }}>
             <Pressable onPress={hide} style={styles.toast}>

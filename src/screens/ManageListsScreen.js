@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { AppHeader } from '../components/Header';
 import { Button, Card, KLabel, TextField } from '../components/ui';
 import { getDb } from '../db';
 import { errorMessage } from '../support/errors';
@@ -100,10 +99,9 @@ export default function ManageListsScreen() {
 
   return (
     <View style={styles.screen}>
-      <AppHeader title="Lists" />
       <ScrollView
         contentContainerStyle={styles.body}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.accent} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.ink} />}
       >
         {error ? (
           <Card style={styles.errBanner}>
@@ -228,7 +226,7 @@ function EditModal({ visible, creating, initial, onClose, onSaved, onError }) {
                   <Ionicons
                     name={t.icon}
                     size={16}
-                    color={active ? colors.accent : colors.inkSoft}
+                    color={active ? colors.ink : colors.inkSoft}
                   />
                   <Text style={[styles.typeText, active && styles.typeTextActive]}>{t.label}</Text>
                 </Pressable>
@@ -323,7 +321,7 @@ const styles = StyleSheet.create({
   },
   typeCellActive: { borderColor: colors.ink, backgroundColor: colors.soft },
   typeText: { fontFamily: fonts.sansMedium, fontSize: 13, color: colors.inkSoft },
-  typeTextActive: { color: colors.accent },
+  typeTextActive: { color: colors.ink },
 
   palette: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   paletteSwatch: {

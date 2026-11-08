@@ -1,45 +1,53 @@
 import React from 'react';
 import { Text, View } from 'react-native';
-import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { colors, fonts } from '../theme';
 
-/**
- * Mark B — the Kharcha square chart mark: a dark rounded square holding a
- * peaks-and-valleys trend line. Used as the app logo at icon scale.
- */
-export function Mark({ size = 36, ink = colors.ink, accent = colors.accent, paper = colors.bg }) {
+// The Kharcha coin: a black "k" stamped on a chrome-yellow coin.
+// Geometry copied from the Paper file ("Mark B" / "Mark B small").
+const K_STEM = { x: 39, y: 37, width: 20.4, height: 86.4, rx: 3 };
+const K_ARM = 'M58.2 93.4L88.2 65.8H115.8L58.2 118.6Z';
+const K_LEG = 'M72.6 104.8L89.4 89.2L120.6 123.4H94.2Z';
+
+/** Coin only — for in-app use at small sizes (headers, lock, onboarding). */
+export function Mark({ size = 28 }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 96 96">
-      <Rect x={2} y={2} width={92} height={92} rx={16} fill={ink} />
-      <Line x1={14} y1={74} x2={82} y2={74} stroke={accent} strokeWidth={1} opacity={0.35} />
-      <Path
-        d="M14 64 L 28 44 L 40 56 L 54 30 L 68 50 L 82 38"
-        fill="none"
-        stroke={paper}
-        strokeWidth={2.6}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <Circle cx={28} cy={44} r={2.8} fill={accent} />
-      <Circle cx={54} cy={30} r={2.8} fill={accent} />
-      <Circle cx={82} cy={38} r={2.8} fill={accent} />
+    <Svg width={size} height={size} viewBox="0 0 160 160">
+      <Circle cx={80} cy={80} r={80} fill={colors.primary} />
+      <Rect {...K_STEM} fill={colors.ink} />
+      <Path d={K_ARM} fill={colors.ink} />
+      <Path d={K_LEG} fill={colors.ink} />
     </Svg>
   );
 }
 
-/** The "kharcha" wordmark in italic Newsreader. */
+/** Full launcher mark: the ringed coin on a black tile. */
+export function AppIconMark({ size = 72 }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 160 160">
+      <Rect x={0} y={0} width={160} height={160} rx={36} fill={colors.ink} />
+      <Circle cx={80} cy={80} r={58} fill={colors.primary} />
+      <Circle cx={80} cy={80} r={47} fill="none" stroke={colors.ink} strokeWidth={4.5} />
+      <Rect x={56} y={50} width={13} height={58} rx={2} fill={colors.ink} />
+      <Path d="M68.5 89L88.5 70.5H107L68.5 105.5Z" fill={colors.ink} />
+      <Path d="M78 96.5L89.5 86L110 108H92Z" fill={colors.ink} />
+    </Svg>
+  );
+}
+
+/** Lowercase "kharcha" wordmark. */
 export function Wordmark({ size = 22, color = colors.ink }) {
   return (
-    <Text style={{ fontFamily: fonts.serifMediumItalic, fontSize: size, color, letterSpacing: -0.5 }}>
+    <Text style={{ fontFamily: fonts.display, fontSize: size, color, letterSpacing: -size * 0.05 }}>
       kharcha
     </Text>
   );
 }
 
-/** Mark + wordmark lockup. */
-export function Brand({ markSize = 30, wordSize = 22 }) {
+/** Coin + wordmark lockup. */
+export function Brand({ markSize = 28, wordSize = 22 }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
       <Mark size={markSize} />
       <Wordmark size={wordSize} />
     </View>

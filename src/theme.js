@@ -1,33 +1,54 @@
-// Kharcha — warm cream + saffron design system.
-// Palette, type, and the per-person / per-category colour logic.
+// Kharcha 2.0 — "signage": black type on white, one chrome-yellow action.
+// Source of truth: the Paper file "Kharcha 2.0 — Redesign" (its design tokens).
 
 export const colors = {
-  bg: '#fdf8ee', // cream — page background
-  card: '#fffaf0', // ivory — cards / panels
-  soft: '#f5ebd6', // sand — soft fills
-  ink: '#2b1f12', // primary text
-  inkSoft: '#7a6850', // secondary text
-  rule: 'rgba(43, 31, 18, 0.12)', // borders
-  ruleSoft: 'rgba(43, 31, 18, 0.06)',
-  accent: '#c9621f', // saffron
-  accent2: '#5d7a3d', // olive — positive
-  alarm: '#b14430', // clay red — negative / over budget
-  white: '#ffffff',
-  scrim: 'rgba(20, 12, 4, 0.34)',
+  bg: '#FFFFFF', // page
+  card: '#FFFFFF', // surfaces sit on the page, separated by rules not boxes
+  soft: '#F6F6F4', // soft fills (inputs, chips, icon buttons)
+  ink: '#111111', // text, dark surfaces
+  inkSoft: '#6B6B6B', // secondary text
+  muted: '#9A9A9A', // chevrons, placeholder strokes
+  rule: '#EDEDED', // dividers, chip outlines
+  ruleSoft: '#F3F3F3',
+  primary: '#F5C518', // chrome yellow — the primary action only; ink text on top
+  accent: '#F5C518', // legacy alias of primary (never use as text colour)
+  accent2: '#1F8A4C', // good / under budget
+  good: '#1F8A4C',
+  alarm: '#C8372D', // bad / over budget
+  bad: '#C8372D',
+  warnFill: '#FDF3E1',
+  white: '#FFFFFF',
+  scrim: 'rgba(0, 0, 0, 0.55)',
 };
 
-// Font family keys — registered in App.js via useFonts().
+// Font family keys — registered in App.js via useFonts(). The old serif keys
+// now map onto Geist so any screen not yet rebuilt still picks up the new type.
 export const fonts = {
-  serif: 'Newsreader',
-  serifMedium: 'Newsreader-Medium',
-  serifItalic: 'Newsreader-Italic',
-  serifMediumItalic: 'Newsreader-MediumItalic',
+  display: 'Geist-ExtraBold',
   sans: 'Geist',
   sansMedium: 'Geist-Medium',
   sansSemibold: 'Geist-SemiBold',
   mono: 'GeistMono',
   monoMedium: 'GeistMono-Medium',
+  serif: 'Geist-Medium',
+  serifMedium: 'Geist-ExtraBold',
+  serifItalic: 'Geist',
+  serifMediumItalic: 'Geist-ExtraBold',
 };
+
+/** Shared type styles from the design (sizes in dp). */
+export const type = {
+  hero: { fontFamily: 'Geist-ExtraBold', fontSize: 60, lineHeight: 64, letterSpacing: -3, color: '#111111' },
+  title: { fontFamily: 'Geist-ExtraBold', fontSize: 34, letterSpacing: -1.4, color: '#111111' },
+  h2: { fontFamily: 'Geist-ExtraBold', fontSize: 22, letterSpacing: -0.6, color: '#111111' },
+  caps: { fontFamily: 'Geist-Medium', fontSize: 12, letterSpacing: 1, textTransform: 'uppercase', color: '#6B6B6B' },
+  body: { fontFamily: 'Geist', fontSize: 15, lineHeight: 21, color: '#111111' },
+  bodySoft: { fontFamily: 'Geist', fontSize: 14, lineHeight: 20, color: '#6B6B6B' },
+  label: { fontFamily: 'Geist-Medium', fontSize: 15, color: '#111111' },
+  amount: { fontFamily: 'GeistMono-Medium', fontSize: 15, color: '#111111' },
+};
+
+export const radius = { sm: 8, md: 14, full: 999 };
 
 // Legacy single-arg formatters. The whole app should migrate to
 // `useMoney()` from src/hooks/useMoney so amounts render in the user's
@@ -85,15 +106,6 @@ function hashHue(str) {
   return h;
 }
 
-/** A warm pastel + matching ink for a person/list avatar, derived from the name. */
-export function personColor(name) {
-  const hue = hashHue(name || 'x');
-  return {
-    bg: `hsl(${hue}, 42%, 80%)`,
-    ink: `hsl(${hue}, 36%, 30%)`,
-  };
-}
-
 // Category hues borrowed from the Kharcha design spec.
 const CAT_META = {
   groceries: { hue: 32, short: 'Gr' },
@@ -123,16 +135,4 @@ export function categoryStyle(name) {
     bg: `hsl(${hue}, 44%, 82%)`,
     ink: `hsl(${hue}, 40%, 30%)`,
   };
-}
-
-/** Ionicons name for a spending-list type. */
-export function listIcon(type) {
-  switch (type) {
-    case 'household':
-      return 'home';
-    case 'vehicle':
-      return 'car-sport';
-    default:
-      return 'person';
-  }
 }

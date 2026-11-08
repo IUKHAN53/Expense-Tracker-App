@@ -5,12 +5,10 @@
   "dependencies": {
     "@expo-google-fonts/geist": "^0.4.2",
     "@expo-google-fonts/geist-mono": "^0.4.2",
-    "@expo-google-fonts/newsreader": "^0.4.1",
     "@expo/vector-icons": "^15.0.2",
     "@noble/ciphers": "^2.4.0",
     "@noble/hashes": "^2.4.0",
     "@react-native-community/datetimepicker": "9.1.0",
-    "@react-navigation/bottom-tabs": "^7.16.1",
     "@react-navigation/native": "^7.2.4",
     "@react-navigation/native-stack": "^7.15.1",
     "expo": "~56.0.5",
@@ -29,6 +27,7 @@
     "expo-updates": "~56.0.17",
     "react": "19.2.3",
     "react-native": "0.85.3",
+    "react-native-qrcode-svg": "^6.3.54",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "4.25.2",
     "react-native-svg": "15.15.4"

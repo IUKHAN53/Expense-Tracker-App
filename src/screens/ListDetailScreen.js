@@ -1,179 +1,176 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getDb } from '../db';
 import { errorMessage } from '../support/errors';
-import { Avatar, Card, EmptyState, Loading, SectionHeader,  } from '../components/ui';
-import { CategoryBreakdown, ExpenseItem } from '../components/bits';
-import { colors, currentMonthKey, fonts, monthLabel } from '../theme';
-import { useMoney } from '../hooks/useMoney';
+import { grouped } from '../support/currency';
 import { on, EVENTS } from '../support/events';
+import { colors, currentMonthKey, fonts, monthLabel, type } from '../theme';
+import { useCurrency } from '../hooks/useMoney';
+import { ActionBar, Caps, dayGroup, EntryRow, PrimaryAction } from '../components/kit';
+import { EmptyState, Loading } from '../components/ui';
 
 export default function ListDetailScreen({ route, navigation }) {
-  const money = useMoney();
   const { list } = route.params;
-  const [entries, setEntries] = useState([]);
+  const ccy = useCurrency();
+  const [month] = useState(currentMonthKey);
+  const [entries, setEntries] = useState(null);
   const [total, setTotal] = useState(0);
-  const [grand, setGrand] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: list.name });
   }, [navigation, list.name]);
 
-  // The app always shows the current month; pick up "now" on each focus.
   const load = useCallback(async () => {
     try {
       setError('');
-      const month = currentMonthKey();
-      const db = await getDb();
-      const [e, s] = await Promise.all([
-        db.entries.list({ spending_list_id: list.id, month }),
-        db.summary({ month }),
-      ]);
-      setEntries(e.data || []);
-      setTotal(e.total || 0);
-      setGrand(s.grand_total || 0);
-    } catch (err) {
-      setError(errorMessage(err));
+      const res = await (await getDb()).entries.list({ spending_list_id: list.id, month });
+      setEntries(res.data);
+      setTotal(res.total);
+    } catch (e) {
+      setError(errorMessage(e));
+      setEntries([]);
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
-  }, [list.id]);
+  }, [list.id, month]);
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load]),
-  );
-
-  useEffect(() => {
-    const off = on(EVENTS.ENTRIES_CHANGED, load);
-    return off;
-  }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useEffect(() => on(EVENTS.ENTRIES_CHANGED, load), [load]);
 
   const byCategory = useMemo(() => {
-    const map = {};
-    entries.forEach((e) => {
-      const name = e.category ? e.category.name : 'Uncategorised';
-      map[name] = (map[name] || 0) + Number(e.amount || 0);
-    });
-    return Object.entries(map).map(([name, amount]) => ({ name, amount }));
+    const m = new Map();
+    for (const e of entries || []) {
+      const k = e.category?.name || 'Uncategorised';
+      m.set(k, (m.get(k) || 0) + e.amount);
+    }
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [entries]);
 
-  if (loading) {
-    return <Loading label="Loading entries…" />;
-  }
+  const days = useMemo(() => {
+    const groups = [];
+    for (const e of entries || []) {
+      const g = dayGroup(e.purchased_at);
+      if (groups.at(-1)?.label !== g) groups.push({ label: g, items: [] });
+      groups.at(-1).items.push(e);
+    }
+    return groups;
+  }, [entries]);
 
-  const monthKey = currentMonthKey();
-  const share = grand > 0 ? Math.round((total / grand) * 100) : 0;
+  const openEntry = (e) => {
+    if (e.fuel_liters) {
+      navigation.navigate('FuelEntry', {
+        entry: {
+          id: e.id, amount: e.amount, rate: e.fuel_rate, odometer: e.odometer,
+          fuel_type: e.fuel_type, is_full_tank: e.is_full_tank, notes: e.notes, date: e.purchased_at,
+        },
+      });
+    } else {
+      navigation.navigate('AddEntry', { entry: e });
+    }
+  };
+
+  if (!entries) return <Loading />;
+
+  const budget = list.monthly_budget;
+  const pct = budget ? Math.min(total / budget, 1) : 0;
+  const now = new Date();
+  const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
+  const top = byCategory[0]?.[1] || 1;
 
   return (
     <View style={styles.screen}>
       <ScrollView
-        contentContainerStyle={styles.body}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              load();
-            }}
-            tintColor={colors.accent}
-          />
-        }
+        contentContainerStyle={{ paddingBottom: 140 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.ink} />}
       >
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <View style={styles.hero}>
+          <Caps>{list.name} · {monthLabel(month).split(' ')[0]}</Caps>
+          <View style={styles.heroRow}>
+            <Text style={styles.symbol}>{ccy.symbol}</Text>
+            <Text style={[type.hero, { fontSize: 52, lineHeight: 56 }]} numberOfLines={1} adjustsFontSizeToFit>
+              {grouped(total)}
+            </Text>
+          </View>
+          {budget ? (
+            <>
+              <View style={styles.track}>
+                <View style={[styles.fill, { width: `${pct * 100}%` }, total > budget && { backgroundColor: colors.bad }]} />
+              </View>
+              <View style={styles.budgetRow}>
+                <Text style={styles.small}>{Math.round((total / budget) * 100)}% of {ccy.symbol} {grouped(budget)} budget</Text>
+                <Text style={[styles.small, total > budget && { color: colors.bad }]}>
+                  {total > budget
+                    ? `${ccy.symbol} ${grouped(total - budget)} over`
+                    : `${ccy.symbol} ${grouped(budget - total)} left · ${daysLeft} days`}
+                </Text>
+              </View>
+            </>
+          ) : null}
+        </View>
 
-        {/* Hero */}
-        <Card style={styles.hero}>
-          <View style={styles.heroTop}>
-            <Avatar name={list.name} type={list.type} size={52} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.heroName} numberOfLines={1}>{list.name}</Text>
-              <Text style={styles.heroMeta}>
-                {monthLabel(monthKey)} · {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
-                {grand > 0 ? ` · ${share}% of household` : ''}
-              </Text>
+        {error ? <EmptyState icon="alert-circle-outline" title="Couldn’t load" subtitle={error} /> : null}
+
+        {byCategory.length ? (
+          <View style={styles.section}>
+            <Caps>By category</Caps>
+            {byCategory.map(([name, amt]) => (
+              <View key={name} style={styles.catRow}>
+                <Text style={styles.catName} numberOfLines={1}>{name}</Text>
+                <View style={styles.catTrack}>
+                  <View style={[styles.catFill, { width: `${(amt / top) * 100}%` }]} />
+                </View>
+                <Text style={styles.catAmt}>{grouped(amt)}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        <View style={{ paddingHorizontal: 20 }}>
+          {days.length ? days.map((g) => (
+            <View key={g.label} style={{ paddingBottom: 12 }}>
+              <Caps style={{ paddingBottom: 4 }}>{g.label}</Caps>
+              {g.items.map((e, i) => (
+                <EntryRow
+                  key={e.id}
+                  entry={e}
+                  meta={e.category?.name || (e.fuel_liters ? `${e.fuel_liters} L` : 'Uncategorised')}
+                  last={i === g.items.length - 1}
+                  onPress={() => openEntry(e)}
+                />
+              ))}
             </View>
-          </View>
-          <Text style={styles.heroValue}>{money(total)}</Text>
-          <View style={styles.heroBreakdown}>
-            <CategoryBreakdown data={byCategory} emptyHint="No spending this month." />
-          </View>
-        </Card>
-
-        {/* Entries */}
-        <Card style={styles.panel}>
-          <SectionHeader title="Entries" />
-          {entries.length === 0 ? (
-            <EmptyState
-              icon="receipt-outline"
-              title="No entries this month"
-              subtitle="Tap + to add a purchase."
-            />
-          ) : (
-            entries.map((e) => (
-              <ExpenseItem
-                key={e.id}
-                entry={e}
-                showList={false}
-                onPress={() => navigation.navigate('AddEntry', { entry: e, listId: list.id })}
-              />
-            ))
+          )) : (
+            <EmptyState icon="receipt-outline" title="Nothing here this month" subtitle={`Expenses for ${list.name} will show up here.`} />
           )}
-        </Card>
+        </View>
       </ScrollView>
 
-      <Pressable
-        style={styles.fab}
-        onPress={() => navigation.navigate('AddEntry', { listId: list.id })}
-      >
-        <Ionicons name="add" size={30} color={colors.white} />
-      </Pressable>
+      <ActionBar>
+        <PrimaryAction
+          title={`Add to ${list.name}`}
+          onPress={() => navigation.navigate(list.type === 'vehicle' ? 'Fuel' : 'AddEntry', list.type === 'vehicle' ? undefined : { listId: list.id })}
+        />
+      </ActionBar>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  body: { padding: 16, paddingBottom: 110 },
-  error: { color: colors.alarm, fontSize: 13, marginBottom: 10, fontFamily: fonts.sans },
-  hero: { padding: 20, marginBottom: 12 },
-  heroTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  heroName: {
-    fontFamily: fonts.serifMedium,
-    fontSize: 26,
-    color: colors.ink,
-  },
-  heroMeta: { fontFamily: fonts.sans, fontSize: 12, color: colors.inkSoft, marginTop: 2 },
-  heroValue: {
-    fontFamily: fonts.serifMedium,
-    fontSize: 44,
-    color: colors.ink,
-    marginTop: 14,
-    letterSpacing: -1,
-  },
-  heroBreakdown: { marginTop: 16 },
-  panel: { padding: 18 },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 24,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 6,
-    shadowColor: colors.accent,
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-  },
+  hero: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24, gap: 12 },
+  heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  symbol: { fontFamily: fonts.sansMedium, fontSize: 20, color: colors.inkSoft },
+  track: { height: 8, borderRadius: 4, backgroundColor: colors.soft, overflow: 'hidden' },
+  fill: { height: 8, backgroundColor: colors.ink },
+  budgetRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  small: { fontFamily: fonts.sans, fontSize: 13, color: colors.inkSoft },
+  section: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
+  catRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  catName: { width: 104, flexShrink: 0, fontFamily: fonts.sansMedium, fontSize: 14, color: colors.ink },
+  catTrack: { flex: 1, height: 10, borderRadius: 5, backgroundColor: colors.soft },
+  catFill: { height: 10, borderRadius: 5, backgroundColor: colors.ink },
+  catAmt: { width: 72, flexShrink: 0, textAlign: 'right', fontFamily: fonts.mono, fontSize: 14, color: colors.ink },
 });

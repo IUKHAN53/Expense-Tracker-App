@@ -4,13 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import {
-  Newsreader_400Regular,
-  Newsreader_500Medium,
-  Newsreader_400Regular_Italic,
-  Newsreader_500Medium_Italic,
-} from '@expo-google-fonts/newsreader';
-import { Geist_400Regular, Geist_500Medium, Geist_600SemiBold } from '@expo-google-fonts/geist';
+import { Geist_400Regular, Geist_500Medium, Geist_600SemiBold, Geist_800ExtraBold } from '@expo-google-fonts/geist';
 import { GeistMono_400Regular, GeistMono_500Medium } from '@expo-google-fonts/geist-mono';
 import { AppProvider } from './src/context/AppContext';
 import RootNavigator from './src/navigation/RootNavigator';
@@ -25,13 +19,10 @@ const navTheme = {
 
 export default function App() {
   const [fontsLoaded] = useFonts({
-    Newsreader: Newsreader_400Regular,
-    'Newsreader-Medium': Newsreader_500Medium,
-    'Newsreader-Italic': Newsreader_400Regular_Italic,
-    'Newsreader-MediumItalic': Newsreader_500Medium_Italic,
     Geist: Geist_400Regular,
     'Geist-Medium': Geist_500Medium,
     'Geist-SemiBold': Geist_600SemiBold,
+    'Geist-ExtraBold': Geist_800ExtraBold,
     GeistMono: GeistMono_400Regular,
     'GeistMono-Medium': GeistMono_500Medium,
   });
@@ -39,7 +30,7 @@ export default function App() {
   if (!fontsLoaded) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color={colors.accent} />
+        <ActivityIndicator size="large" color={colors.ink} />
       </View>
     );
   }
