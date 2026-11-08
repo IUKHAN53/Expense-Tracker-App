@@ -1,4 +1,5 @@
 import { randomUUID } from 'expo-crypto';
+import { File } from 'expo-file-system';
 import { getDb } from '../db';
 
 export const SCAN_URL = 'https://expense.iukhan.tech/api/v2/scan';
@@ -21,7 +22,8 @@ async function deviceId() {
  */
 export async function scanReceipt(uri, { token, currency, categories }) {
   const form = new FormData();
-  form.append('image', { uri, name: 'receipt.jpg', type: 'image/jpeg' });
+  // Expo's global fetch doesn't take RN-style { uri } parts; a File (has bytes()) works.
+  form.append('image', new File(uri));
   form.append('device_id', await deviceId());
   if (token) form.append('purchase_token', token);
   if (currency) form.append('currency', currency);
