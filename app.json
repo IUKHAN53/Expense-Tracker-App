@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kharcha",
     "slug": "expense-tracker",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "scheme": "kharcha",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
