@@ -11,6 +11,7 @@ import { enqueueEntry } from '../support/outbox';
 import { isNetworkError } from '../support/net';
 import { cachedGet } from '../support/cachedApi';
 import { emit, EVENTS } from '../support/events';
+import { useToast } from '../components/Toast';
 
 const FUEL_TYPES = ['E92', 'E95', 'E98'];
 
@@ -22,6 +23,7 @@ function toServerDate(d) {
 export default function FuelEntryScreen({ route, navigation }) {
   const money = useMoney();
   const ccy = useCurrency();
+  const toast = useToast();
   const { online, refreshPending } = useOnline();
   const editing = route.params?.entry || null;
 
@@ -108,7 +110,7 @@ export default function FuelEntryScreen({ route, navigation }) {
       await enqueueEntry(payload);
       await refreshPending();
       setSaving(false);
-      Alert.alert('Saved offline', 'This refill is queued and will sync automatically when you’re back online.');
+      toast.info('Saved offline — it’ll sync automatically when you’re back online.');
       navigation.goBack();
     };
 
@@ -127,6 +129,7 @@ export default function FuelEntryScreen({ route, navigation }) {
         await api.post('/entries', payload);
       }
       emit(EVENTS.ENTRIES_CHANGED);
+      toast.success(editing ? 'Refill updated.' : 'Refill saved.');
       navigation.goBack();
     } catch (e) {
       if (!editing && isNetworkError(e)) {
@@ -147,9 +150,11 @@ export default function FuelEntryScreen({ route, navigation }) {
           try {
             await api.delete(`/entries/${editing.id}`);
             emit(EVENTS.ENTRIES_CHANGED);
+            toast.success('Refill deleted.');
             navigation.goBack();
           } catch (e) {
             setError(errorMessage(e));
+            toast.error(errorMessage(e, 'Could not delete the refill.'));
           }
         },
       },

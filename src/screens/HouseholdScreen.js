@@ -15,10 +15,12 @@ import { AppHeader } from '../components/Header';
 import { Button, Card, TextField } from '../components/ui';
 import api, { errorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/Toast';
 import { colors, fonts } from '../theme';
 
 export default function HouseholdScreen() {
   const { user } = useAuth();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [members, setMembers] = useState([]);
@@ -27,7 +29,6 @@ export default function HouseholdScreen() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState('');
-  const [okBanner, setOkBanner] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -60,10 +61,9 @@ export default function HouseholdScreen() {
     }
     setInviting(true);
     setError('');
-    setOkBanner('');
     try {
       const res = await api.post('/account/invitations', { email: inviteEmail.trim() });
-      setOkBanner(res.data?.message || `Invitation sent to ${inviteEmail.trim()}.`);
+      toast.success(res.data?.message || `Invitation sent to ${inviteEmail.trim()}.`);
       setInviteEmail('');
       load();
     } catch (e) {
@@ -85,10 +85,12 @@ export default function HouseholdScreen() {
           onPress: async () => {
             try {
               await api.delete(`/account/invitations/${invitation.id}`);
-              setOkBanner(`Invitation to ${invitation.email} revoked.`);
+              toast.success(`Invitation to ${invitation.email} revoked.`);
               load();
             } catch (e) {
-              setError(errorMessage(e, 'Could not revoke the invitation.'));
+              const msg = errorMessage(e, 'Could not revoke the invitation.');
+              setError(msg);
+              toast.error(msg);
             }
           },
         },
@@ -108,10 +110,12 @@ export default function HouseholdScreen() {
           onPress: async () => {
             try {
               await api.delete(`/account/members/${member.id}`);
-              setOkBanner(`${member.name} removed from the household.`);
+              toast.success(`${member.name} removed from the household.`);
               load();
             } catch (e) {
-              setError(errorMessage(e, 'Could not remove this member.'));
+              const msg = errorMessage(e, 'Could not remove this member.');
+              setError(msg);
+              toast.error(msg);
             }
           },
         },
@@ -155,12 +159,6 @@ export default function HouseholdScreen() {
           </Card>
         )}
 
-        {okBanner ? (
-          <Card style={styles.ok}>
-            <Ionicons name="checkmark-circle-outline" size={18} color={colors.ok || '#5d7a3d'} />
-            <Text style={styles.okText}>{okBanner}</Text>
-          </Card>
-        ) : null}
         {error ? (
           <Card style={styles.errBanner}>
             <Ionicons name="alert-circle-outline" size={18} color={colors.alarm} />
@@ -265,8 +263,6 @@ const styles = StyleSheet.create({
   capacityBarFill: { height: '100%', backgroundColor: colors.accent },
   capacityHint: { fontFamily: fonts.sans, fontSize: 12.5, color: colors.inkSoft, marginTop: 10, lineHeight: 18 },
 
-  ok: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, marginBottom: 12, backgroundColor: '#eef5e6' },
-  okText: { fontFamily: fonts.sans, fontSize: 13.5, color: '#3e5a23', flex: 1 },
   errBanner: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, marginBottom: 12, backgroundColor: '#fbeae3' },
   errText: { fontFamily: fonts.sans, fontSize: 13.5, color: colors.alarm, flex: 1 },
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,  } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -16,6 +16,7 @@ import { CURRENCIES, currencyMeta, money as fmtMoney } from '../support/currency
 import { fetchRate } from '../support/fx';
 import { saveToGallery } from '../support/gallery';
 import { emit, EVENTS } from '../support/events';
+import { useToast } from '../components/Toast';
 
 const TYPE_LABEL = {
   grocery: 'Grocery',
@@ -26,6 +27,7 @@ const TYPE_LABEL = {
 
 export default function ScanScreen() {
   const money = useMoney();
+  const toast = useToast();
   const { user } = useAuth();
   const { online } = useOnline();
   const baseCcy = user?.account?.currency || 'USD';
@@ -141,7 +143,7 @@ export default function ScanScreen() {
     try {
       const saved = await saveToGallery(result.assets[0].uri);
       if (saved) {
-        Alert.alert('Saved to gallery', 'Import this receipt from your gallery to scan it once you’re back online.');
+        toast.success('Saved to gallery — import it to scan once you’re back online.');
       } else {
         setError('Permission to save to your gallery was denied.');
       }
@@ -288,12 +290,10 @@ export default function ScanScreen() {
               onPress={async () => {
                 try {
                   const ok = await saveToGallery(preview);
-                  Alert.alert(
-                    ok ? 'Saved to gallery' : 'Permission denied',
-                    ok ? 'A copy of this receipt is now in your gallery.' : 'Could not save to your gallery.',
-                  );
+                  if (ok) toast.success('A copy of this receipt is now in your gallery.');
+                  else toast.error('Permission denied — could not save to your gallery.');
                 } catch {
-                  Alert.alert('Error', 'Could not save the photo.');
+                  toast.error('Could not save the photo.');
                 }
               }}
             />

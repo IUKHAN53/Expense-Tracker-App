@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { CURRENCIES } from '../support/currency';
 import { errorMessage } from '../api/client';
 import { Mark } from '../components/Logo';
+import { useToast } from '../components/Toast';
 import { colors, fonts } from '../theme';
 
 /**
@@ -23,6 +24,7 @@ import { colors, fonts } from '../theme';
  */
 export default function CurrencyPickerScreen({ navigation, route }) {
   const { user, setCurrency } = useAuth();
+  const toast = useToast();
   const initial = user?.account?.currency || null;
   const [selected, setSelected] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -44,6 +46,7 @@ export default function CurrencyPickerScreen({ navigation, route }) {
     setError('');
     try {
       await setCurrency(selected);
+      toast.success(`Currency set to ${selected}.`);
       if (isChange && navigation?.canGoBack()) {
         navigation.goBack();
       }

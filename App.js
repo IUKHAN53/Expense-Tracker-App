@@ -17,6 +17,7 @@ import { ConnectivityProvider } from './src/context/ConnectivityContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { OfflineBanner } from './src/components/OfflineBanner';
+import { ToastProvider } from './src/components/Toast';
 import { colors } from './src/theme';
 
 const navTheme = {
@@ -49,15 +50,17 @@ export default function App() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <AuthProvider>
-          <ConnectivityProvider>
-            <NavigationContainer theme={navTheme}>
-              <View style={{ flex: 1 }}>
-                <OfflineBanner />
-                <RootNavigator />
-              </View>
-            </NavigationContainer>
-            <StatusBar style="dark" />
-          </ConnectivityProvider>
+          <ToastProvider>
+            <ConnectivityProvider>
+              <NavigationContainer theme={navTheme}>
+                <View style={{ flex: 1 }}>
+                  <OfflineBanner />
+                  <RootNavigator />
+                </View>
+              </NavigationContainer>
+              <StatusBar style="dark" />
+            </ConnectivityProvider>
+          </ToastProvider>
         </AuthProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

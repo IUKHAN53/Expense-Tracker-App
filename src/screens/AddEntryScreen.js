@@ -10,6 +10,7 @@ import { enqueueEntry } from '../support/outbox';
 import { isNetworkError } from '../support/net';
 import { cachedGet } from '../support/cachedApi';
 import { emit, EVENTS } from '../support/events';
+import { useToast } from '../components/Toast';
 
 function toServerDate(d) {
   const p = (n) => String(n).padStart(2, '0');
@@ -19,6 +20,7 @@ function toServerDate(d) {
 export default function AddEntryScreen({ route, navigation }) {
   const money = useMoney();
   const ccy = useCurrency();
+  const toast = useToast();
   const { online, refreshPending } = useOnline();
   const editing = route.params?.entry || null;
   const presetListId = route.params?.listId || null;
@@ -126,7 +128,7 @@ export default function AddEntryScreen({ route, navigation }) {
       await enqueueEntry(createPayload);
       await refreshPending();
       setSaving(false);
-      Alert.alert('Saved offline', 'This expense is queued and will sync automatically when you’re back online.');
+      toast.info('Saved offline — it’ll sync automatically when you’re back online.');
       navigation.goBack();
     };
 
@@ -146,6 +148,13 @@ export default function AddEntryScreen({ route, navigation }) {
         await api.post('/entries', createPayload);
       }
       emit(EVENTS.ENTRIES_CHANGED);
+      toast.success(
+        editing
+          ? 'Expense updated.'
+          : listIds.length > 1
+            ? `Split saved across ${listIds.length} people.`
+            : 'Expense saved.',
+      );
       navigation.goBack();
     } catch (e) {
       // Lost the connection mid-save while creating? Queue instead of failing.
@@ -167,9 +176,11 @@ export default function AddEntryScreen({ route, navigation }) {
           try {
             await api.delete(`/entries/${editing.id}`);
             emit(EVENTS.ENTRIES_CHANGED);
+            toast.success('Expense deleted.');
             navigation.goBack();
           } catch (e) {
             setError(errorMessage(e));
+            toast.error(errorMessage(e, 'Could not delete the expense.'));
           }
         },
       },

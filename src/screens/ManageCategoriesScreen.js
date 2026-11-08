@@ -17,6 +17,7 @@ import { Button, Card, KLabel, TextField } from '../components/ui';
 import api, { errorMessage } from '../api/client';
 import { colors, fonts } from '../theme';
 import { emit, EVENTS } from '../support/events';
+import { useToast } from '../components/Toast';
 
 const PALETTE = [
   '#22c55e', '#84cc16', '#dc2626', '#fbbf24',
@@ -25,6 +26,7 @@ const PALETTE = [
 ];
 
 export default function ManageCategoriesScreen() {
+  const toast = useToast();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -77,9 +79,12 @@ export default function ManageCategoriesScreen() {
             try {
               await api.delete(`/categories/${cat.id}`);
               emit(EVENTS.CATEGORIES_CHANGED);
+              toast.success(`“${cat.name}” deleted.`);
               load();
             } catch (e) {
-              setError(errorMessage(e, 'Could not delete the category.'));
+              const msg = errorMessage(e, 'Could not delete the category.');
+              setError(msg);
+              toast.error(msg);
             }
           },
         },
@@ -148,6 +153,7 @@ export default function ManageCategoriesScreen() {
 }
 
 function EditModal({ visible, creating, initial, onClose, onSaved, onError }) {
+  const toast = useToast();
   const [name, setName] = useState('');
   const [color, setColor] = useState(PALETTE[0]);
   const [saving, setSaving] = useState(false);
@@ -168,6 +174,7 @@ function EditModal({ visible, creating, initial, onClose, onSaved, onError }) {
       } else {
         await api.put(`/categories/${initial.id}`, { name: name.trim(), color });
       }
+      toast.success(creating ? `“${name.trim()}” added.` : `“${name.trim()}” updated.`);
       onSaved();
     } catch (e) {
       onError(errorMessage(e, 'Could not save the category.'));

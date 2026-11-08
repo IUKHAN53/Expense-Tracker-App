@@ -17,6 +17,7 @@ import { Button, Card, KLabel, TextField } from '../components/ui';
 import api, { errorMessage } from '../api/client';
 import { colors, fonts } from '../theme';
 import { emit, EVENTS } from '../support/events';
+import { useToast } from '../components/Toast';
 
 const TYPES = [
   { value: 'person', label: 'Person', icon: 'person-outline' },
@@ -31,6 +32,7 @@ const PALETTE = [
 ];
 
 export default function ManageListsScreen() {
+  const toast = useToast();
   const [lists, setLists] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -83,9 +85,12 @@ export default function ManageListsScreen() {
             try {
               await api.delete(`/lists/${list.id}`);
               emit(EVENTS.LISTS_CHANGED);
+              toast.success(`“${list.name}” deleted.`);
               load();
             } catch (e) {
-              setError(errorMessage(e, 'Could not delete the list.'));
+              const msg = errorMessage(e, 'Could not delete the list.');
+              setError(msg);
+              toast.error(msg);
             }
           },
         },
@@ -159,6 +164,7 @@ function labelForType(type) {
 }
 
 function EditModal({ visible, creating, initial, onClose, onSaved, onError }) {
+  const toast = useToast();
   const [name, setName] = useState('');
   const [type, setType] = useState('person');
   const [color, setColor] = useState(PALETTE[0]);
@@ -181,6 +187,7 @@ function EditModal({ visible, creating, initial, onClose, onSaved, onError }) {
       } else {
         await api.put(`/lists/${initial.id}`, { name: name.trim(), type, color });
       }
+      toast.success(creating ? `“${name.trim()}” added.` : `“${name.trim()}” updated.`);
       onSaved();
     } catch (e) {
       onError(errorMessage(e, 'Could not save the list.'));

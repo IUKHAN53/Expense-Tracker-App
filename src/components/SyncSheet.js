@@ -26,13 +26,17 @@ export function SyncSheet({ visible, onClose, online, onSyncNow, onChanged }) {
   const ccy = useCurrency();
   const [items, setItems] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
 
   const reload = useCallback(async () => {
     setItems(await listOutbox());
   }, []);
 
   useEffect(() => {
-    if (visible) reload();
+    if (visible) {
+      setNote('');
+      reload();
+    }
   }, [visible, reload]);
 
   const onRemove = async (id) => {
@@ -59,9 +63,18 @@ export function SyncSheet({ visible, onClose, online, onSyncNow, onChanged }) {
 
   const sync = async () => {
     setBusy(true);
+    setNote('');
     try {
-      await onSyncNow?.();
+      const res = await onSyncNow?.();
       await reload();
+      // Everything uploaded → close the sheet so the global "synced" toast
+      // (fired by syncNow) is visible. A native Modal would otherwise cover it.
+      if (res && res.synced > 0 && res.remaining === 0) {
+        onClose?.();
+      } else if (res && res.synced === 0 && res.remaining > 0) {
+        // Nothing went through — show feedback inline (still inside the modal).
+        setNote('Couldn’t sync — check your connection and try again.');
+      }
     } finally {
       setBusy(false);
     }
@@ -83,6 +96,13 @@ export function SyncSheet({ visible, onClose, online, onSyncNow, onChanged }) {
                 : 'Waiting for a connection. They’ll upload automatically when you’re back online.'
               : 'All caught up — nothing waiting to sync.'}
           </Text>
+
+          {note ? (
+            <View style={styles.note}>
+              <Ionicons name="alert-circle-outline" size={16} color={colors.alarm} />
+              <Text style={styles.noteText}>{note}</Text>
+            </View>
+          ) : null}
 
           {items.length > 0 && (
             <ScrollView style={styles.list} contentContainerStyle={{ paddingVertical: 4 }}>
@@ -159,6 +179,12 @@ const styles = StyleSheet.create({
     borderRadius: 13, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden',
   },
   sub: { fontFamily: fonts.sans, fontSize: 13, color: colors.inkSoft, marginTop: 6, lineHeight: 19 },
+  note: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#fbeae3', borderRadius: 10,
+    paddingVertical: 10, paddingHorizontal: 12, marginTop: 12,
+  },
+  noteText: { flex: 1, fontFamily: fonts.sans, fontSize: 13, color: colors.alarm },
   list: { marginTop: 14 },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 12,

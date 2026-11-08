@@ -4,6 +4,7 @@ import { getOnline } from '../support/net';
 import { count as outboxCount, flush as flushOutbox } from '../support/outbox';
 import { emit, EVENTS } from '../support/events';
 import { SyncSheet } from '../components/SyncSheet';
+import { useToast } from '../components/Toast';
 
 const ConnectivityContext = createContext({
   online: true,
@@ -19,6 +20,7 @@ const ConnectivityContext = createContext({
  * replays any queued offline writes and tells screens to refresh.
  */
 export function ConnectivityProvider({ children }) {
+  const toast = useToast();
   const [online, setOnline] = useState(true);
   const [pending, setPending] = useState(0);
   const [syncOpen, setSyncOpen] = useState(false);
@@ -29,7 +31,10 @@ export function ConnectivityProvider({ children }) {
   const syncNow = async () => {
     const res = await flushOutbox();
     await refreshPending();
-    if (res.synced > 0) emit(EVENTS.ENTRIES_CHANGED);
+    if (res.synced > 0) {
+      emit(EVENTS.ENTRIES_CHANGED);
+      toast.success(`${res.synced} change${res.synced === 1 ? '' : 's'} synced.`);
+    }
     return res;
   };
 
