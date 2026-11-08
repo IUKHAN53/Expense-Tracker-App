@@ -31,6 +31,7 @@ export default function FuelEntryScreen({ route, navigation }) {
   const ccy = useCurrency();
   const toast = useToast();
   const editing = route.params?.entry || null;
+  const prefill = route.params?.prefill || null; // from a scanned petrol receipt
   const amountRef = useRef(null);
   const odoRef = useRef(null);
 
@@ -41,18 +42,19 @@ export default function FuelEntryScreen({ route, navigation }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const src = editing || prefill;
   const [vals, setVals] = useState({
-    amount: editing?.amount != null ? String(editing.amount) : '',
-    rate: editing?.rate != null ? String(editing.rate) : '',
-    liters: '',
+    amount: src?.amount != null ? String(src.amount) : '',
+    rate: src?.rate != null ? String(src.rate) : '',
+    liters: !editing && prefill?.liters != null && prefill?.rate == null ? String(prefill.liters) : '',
   });
   // The last two fields the user typed in; the remaining one is calculated.
-  const [sources, setSources] = useState(['amount', 'rate']);
+  const [sources, setSources] = useState(!editing && prefill?.liters != null && prefill?.rate == null ? ['amount', 'liters'] : ['amount', 'rate']);
   const [odometer, setOdometer] = useState(editing?.odometer != null ? String(editing.odometer) : '');
   const [fuelType, setFuelType] = useState(editing?.fuel_type || 'E92');
   const [full, setFull] = useState(editing ? editing.is_full_tank !== false : true);
   const [notes, setNotes] = useState(editing?.notes || '');
-  const [date, setDate] = useState(editing?.date ? new Date(editing.date) : new Date());
+  const [date, setDate] = useState(src?.date ? new Date(src.date) : new Date());
   const [picking, setPicking] = useState(false);
 
   useLayoutEffect(() => {
@@ -72,7 +74,7 @@ export default function FuelEntryScreen({ route, navigation }) {
         // New refill: start from the last one's rate and fuel type.
         const last = f.records[0];
         if (!editing && last) {
-          if (last.rate) setVals((v) => ({ ...v, rate: String(last.rate) }));
+          if (last.rate && !prefill?.rate && !prefill?.liters) setVals((v) => ({ ...v, rate: String(last.rate) }));
           if (last.fuel_type) setFuelType(last.fuel_type);
         }
       } catch (e) {

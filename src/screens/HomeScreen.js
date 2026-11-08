@@ -146,6 +146,7 @@ export default function HomeScreen({ navigation }) {
 
       <ActionBar>
         <PrimaryAction title="Add expense" onPress={() => navigation.navigate('AddEntry', {})} />
+        <SquareAction icon="scan-outline" label="Scan receipt" onPress={() => navigation.navigate('Scan', { source: 'camera' })} />
         {hasCar ? <SquareAction icon="car-outline" label="Fuel" onPress={() => navigation.navigate('Fuel')} /> : null}
       </ActionBar>
 

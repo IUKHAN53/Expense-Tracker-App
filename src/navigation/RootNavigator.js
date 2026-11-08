@@ -13,6 +13,8 @@ import SettingsScreen from '../screens/SettingsScreen';
 import ManageListsScreen from '../screens/ManageListsScreen';
 import ManageCategoriesScreen from '../screens/ManageCategoriesScreen';
 import CurrencyPickerScreen from '../screens/CurrencyPickerScreen';
+import ScanScreen from '../screens/ScanScreen';
+import PaywallScreen from '../screens/PaywallScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -71,6 +73,8 @@ export default function RootNavigator() {
             component={FuelEntryScreen}
             options={{ title: 'New refill', presentation: 'modal' }}
           />
+          <Stack.Screen name="Scan" component={ScanScreen} options={{ title: 'Scan receipt', presentation: 'modal' }} />
+          <Stack.Screen name="Paywall" component={PaywallScreen} options={{ title: '', presentation: 'modal' }} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: '' }} />
           <Stack.Screen name="ManageLists" component={ManageListsScreen} options={{ title: 'Lists' }} />
           <Stack.Screen name="ManageCategories" component={ManageCategoriesScreen} options={{ title: 'Categories' }} />

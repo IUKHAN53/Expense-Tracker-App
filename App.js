@@ -7,6 +7,7 @@ import { useFonts } from 'expo-font';
 import { Geist_400Regular, Geist_500Medium, Geist_600SemiBold, Geist_800ExtraBold } from '@expo-google-fonts/geist';
 import { GeistMono_400Regular, GeistMono_500Medium } from '@expo-google-fonts/geist-mono';
 import { AppProvider } from './src/context/AppContext';
+import { ProProvider } from './src/context/ProContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { ToastProvider } from './src/components/Toast';
@@ -39,12 +40,14 @@ export default function App() {
     <SafeAreaProvider>
       <ErrorBoundary>
         <AppProvider>
+          <ProProvider>
           <ToastProvider>
             <NavigationContainer theme={navTheme}>
               <RootNavigator />
             </NavigationContainer>
             <StatusBar style="dark" />
           </ToastProvider>
+          </ProProvider>
         </AppProvider>
       </ErrorBoundary>
     </SafeAreaProvider>

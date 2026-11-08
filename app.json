@@ -23,7 +23,6 @@
       },
       "permissions": [],
       "blockedPermissions": [
-        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
@@ -64,7 +63,16 @@
         }
       ],
       "expo-secure-store",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Kharcha uses the camera to scan your receipts.",
+          "photosPermission": "Kharcha opens a photo of a receipt you pick to scan it.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-iap"
     ],
     "extra": {
       "eas": {

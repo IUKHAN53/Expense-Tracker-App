@@ -76,6 +76,22 @@ assert.equal(split.split_share, 500.5);
 assert.ok(split.data.every((e) => e.split_group_id === split.split_group_id));
 await assert.rejects(db.entries.create({ spending_list_ids: [home.id, home.id], item_name: 'x', amount: 1 }), /different lists/);
 
+// createMany (scanned receipts): all or nothing.
+const countBefore = (await db.entries.list({})).data.length;
+await assert.rejects(db.entries.createMany([
+  { spending_list_id: home.id, item_name: 'Milk', amount: 300, source: 'scan' },
+  { spending_list_id: 999, item_name: 'Bad list', amount: 1, source: 'scan' },
+]), /FOREIGN KEY/);
+assert.equal((await db.entries.list({})).data.length, countBefore);
+await assert.rejects(db.entries.createMany([{ item_name: 'No list', amount: 1 }]), /needs a list/);
+const many = await db.entries.createMany([
+  { spending_list_id: home.id, item_name: 'Eggs', amount: 360, source: 'scan', purchased_at: '2026-11-03 10:00:00' },
+  { spending_list_id: home.id, item_name: 'Bread', amount: 180, source: 'scan', purchased_at: '2026-11-03 10:00:00' },
+]);
+assert.equal(many.count, 2);
+for (const e of (await db.entries.list({})).data.filter((x) => x.source === 'scan')) await db.entries.remove(e.id);
+assert.equal((await db.entries.list({})).data.length, countBefore);
+
 // Out-of-month entry must not count
 await db.entries.create({ spending_list_id: home.id, item_name: 'Oct thing', amount: 999, purchased_at: '2026-10-31 23:59:00' });
 

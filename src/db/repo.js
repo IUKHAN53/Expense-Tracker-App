@@ -274,6 +274,24 @@ export function createRepo(db, { uuid }) {
       };
     },
 
+    /** Several single-list entries (e.g. a scanned receipt), all or nothing. */
+    async createMany(inputs) {
+      if (!Array.isArray(inputs) || !inputs.length || inputs.length > 200) throw new Error('Nothing to save.');
+      const rows = inputs.map((input) => {
+        const row = pick(input, ENTRY_COLS);
+        if (!Number.isInteger(Number(row.spending_list_id))) throw new Error('Every item needs a list.');
+        checkEntry(row, false);
+        row.quantity = row.quantity ?? 1;
+        row.source = row.source ?? 'manual';
+        return row;
+      });
+      const ids = [];
+      await db.withTransactionAsync(async () => {
+        for (const row of rows) ids.push(await insert('entries', row));
+      });
+      return { count: ids.length };
+    },
+
     async update(id, input) {
       await mustExist('entries', id, 'Entry');
       const row = pick(input, ENTRY_COLS);

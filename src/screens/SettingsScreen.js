@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useApp } from '../context/AppContext';
+import { usePro } from '../context/ProContext';
 import { getDb } from '../db';
 import { useBackupFlows } from '../backup/useBackupFlows';
 import { useCurrency } from '../hooks/useMoney';
@@ -17,6 +18,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { currency } = useApp();
   const ccy = useCurrency();
+  const { pro } = usePro();
   const [lastBackup, setLastBackup] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -30,6 +32,10 @@ export default function SettingsScreen() {
     <View style={styles.screen}>
       <ScrollView contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}>
         <Text style={[type.title, styles.title]}>Settings</Text>
+
+        <Group title="Kharcha Pro">
+          <Row title={pro ? 'Pro is active' : 'Get Kharcha Pro'} value={pro ? 'Manage' : 'Receipt scans'} onPress={() => navigation.navigate('Paywall')} last />
+        </Group>
 
         <Group title="Your data">
           <Row title="Back up to a file" value={lastBackup ? `Last: ${formatDate(lastBackup)}` : 'Never'} warn={!lastBackup} onPress={startBackup} />
