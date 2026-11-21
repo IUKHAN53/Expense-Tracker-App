@@ -5,6 +5,7 @@
 // always go through bound parameters.
 
 import { monthKey, monthRange, toIso } from './month.js';
+import { splitByWeights } from './split.js';
 import { buildFuel } from './fuel.js';
 import { SNAPSHOT_SCHEMA, validateSnapshot } from './snapshot.js';
 
@@ -265,21 +266,36 @@ export function createRepo(db, { uuid }) {
         return { data: await getEntry(id) };
       }
 
-      // shortcut: equal shares rounded to 2dp, like the old backend — the sum can be off by a paisa.
-      const share = r2(row.amount / listIds.length);
+      // Uneven split: split_amounts lines up with spending_list_ids and must add up to the bill.
+      // Without it the bill is split evenly; either way the parts sum to the paisa.
+      let parts;
+      if (input.split_amounts != null) {
+        parts = input.split_amounts.map(Number);
+        const cents = parts.map((v) => Math.round(v * 100));
+        if (parts.length !== listIds.length || parts.some((v) => !Number.isFinite(v) || v < 0)) {
+          throw new Error('Give every list in the split an amount.');
+        }
+        if (cents.reduce((s, c) => s + c, 0) !== Math.round(row.amount * 100)) {
+          throw new Error('The split doesn’t add up to the bill.');
+        }
+        parts = cents.map((c) => c / 100);
+      } else {
+        parts = splitByWeights(row.amount, listIds.map(() => 1));
+        if (!parts) throw new Error('Enter an amount to split.');
+      }
       const groupId = uuid();
       const ids = [];
       await db.withTransactionAsync(async () => {
-        for (const listId of listIds) {
+        for (let i = 0; i < listIds.length; i += 1) {
           ids.push(await insert('entries', {
-            ...row, spending_list_id: listId, amount: share, split_group_id: groupId,
+            ...row, spending_list_id: listIds[i], amount: parts[i], split_group_id: groupId,
           }));
         }
       });
       return {
         data: await Promise.all(ids.map(getEntry)),
         split_group_id: groupId,
-        split_share: share,
+        split_amounts: parts,
       };
     },
 

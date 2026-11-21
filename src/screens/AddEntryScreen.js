@@ -9,6 +9,7 @@ import { getDb } from '../db';
 import { errorMessage } from '../support/errors';
 import { grouped } from '../support/currency';
 import { cleanExpr, evaluate, isExpr } from '../support/calc';
+import { computeSplit, splitByWeights } from '../db/split';
 import { emit, EVENTS } from '../support/events';
 import { colors, fonts, type } from '../theme';
 import { useCurrency } from '../hooks/useMoney';
@@ -31,7 +32,7 @@ export default function AddEntryScreen({ route, navigation }) {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Several list ids = split equally between them. Editing is single-list.
+  // Several list ids = split between them (evenly or unevenly). Editing is single-list.
   const [listIds, setListIds] = useState(
     src ? [src.spending_list_id] : presetListId ? [presetListId] : [],
   );
@@ -42,6 +43,8 @@ export default function AddEntryScreen({ route, navigation }) {
   const [pickingDate, setPickingDate] = useState(false);
   const [amountFocused, setAmountFocused] = useState(false);
   const [recent, setRecent] = useState([]);
+  const [splitMode, setSplitMode] = useState('equal');
+  const [splitValues, setSplitValues] = useState({}); // listId -> typed percent / share / amount
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: editing ? 'Edit expense' : 'New expense' });
@@ -72,8 +75,31 @@ export default function AddEntryScreen({ route, navigation }) {
     setCategoryId(e.category_id);
     setListIds([e.spending_list_id]);
   };
-  const valid = value > 0 && listIds.length > 0;
-  const share = listIds.length > 1 && value > 0 ? Math.round((value / listIds.length) * 100) / 100 : 0;
+  const valid = value > 0 && listIds.length > 0 && (!splitting || !split?.error);
+  const splitting = listIds.length > 1 && !editing;
+  const split = splitting ? computeSplit(value, splitMode, listIds.map((id) => splitValues[id] ?? '')) : null;
+  // Switching mode pre-fills sensible numbers so the split adds up straight away.
+  // Two-way % or amount splits: typing one side fills the other with what's left.
+  const setSplitPart = (id, text) => {
+    const t = text.replace(/[^0-9.]/g, '');
+    setSplitValues((v) => {
+      const next = { ...v, [id]: t };
+      const whole = splitMode === 'percent' ? 100 : splitMode === 'amounts' ? value : null;
+      if (listIds.length === 2 && whole > 0 && t !== '') {
+        const other = listIds.find((x) => x !== id);
+        next[other] = String(Math.max(0, Math.round((whole - Number(t)) * 100) / 100));
+      }
+      return next;
+    });
+  };
+
+  const chooseSplitMode = (mode) => {
+    setSplitMode(mode);
+    const even = value > 0 ? splitByWeights(value, listIds.map(() => 1)) : null;
+    const pct = splitByWeights(100, listIds.map(() => 1));
+    setSplitValues(Object.fromEntries(listIds.map((id, i) => [id,
+      mode === 'percent' ? String(pct[i]) : mode === 'shares' ? '1' : mode === 'amounts' && even ? String(even[i]) : ''])));
+  };
   const category = useMemo(() => categories.find((c) => c.id === categoryId), [categories, categoryId]);
 
   const toggleList = (id) => {
@@ -84,6 +110,7 @@ export default function AddEntryScreen({ route, navigation }) {
   const save = async () => {
     if (!(value > 0)) return setError('Enter an amount.');
     if (!listIds.length) return setError('Pick who it’s for.');
+    if (splitting && split?.error) return setError(split.error);
     setSaving(true);
     setError('');
     const base = {
@@ -97,7 +124,7 @@ export default function AddEntryScreen({ route, navigation }) {
       if (editing) {
         await db.entries.update(editing.id, { ...base, spending_list_id: listIds[0] });
       } else if (listIds.length > 1) {
-        await db.entries.create({ ...base, spending_list_ids: listIds });
+        await db.entries.create({ ...base, spending_list_ids: listIds, split_amounts: splitMode === 'equal' ? undefined : split.amounts });
       } else {
         await db.entries.create({ ...base, spending_list_id: listIds[0] });
       }
@@ -207,8 +234,54 @@ export default function AddEntryScreen({ route, navigation }) {
               );
             })}
           </View>
-          {share ? (
-            <Text style={type.bodySoft}>Split equally · {ccy.symbol} {grouped(share)} each</Text>
+          {splitting ? (
+            <View style={styles.splitBox}>
+              <View style={styles.splitModes}>
+                {[['equal', 'Equally'], ['percent', '%'], ['shares', 'Shares'], ['amounts', 'Amounts']].map(([m, label]) => (
+                  <Pressable
+                    key={m}
+                    onPress={() => chooseSplitMode(m)}
+                    style={[styles.splitMode, splitMode === m && styles.splitModeOn]}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: splitMode === m }}
+                  >
+                    <Text style={[styles.splitModeText, splitMode === m && { color: colors.white }]}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {listIds.map((id, i) => {
+                const l = lists.find((x) => x.id === id);
+                const part = split?.amounts?.[i];
+                return (
+                  <View key={id} style={styles.splitRow}>
+                    <Text style={styles.splitName} numberOfLines={1}>{l?.name}</Text>
+                    {splitMode !== 'equal' ? (
+                      <View style={styles.splitInputWrap}>
+                        {splitMode === 'amounts' ? <Text style={styles.splitUnit}>{ccy.symbol}</Text> : null}
+                        <TextInput
+                          value={splitValues[id] ?? ''}
+                          onChangeText={(t) => setSplitPart(id, t)}
+                          keyboardType="decimal-pad"
+                          placeholder="0"
+                          placeholderTextColor={colors.muted}
+                          cursorColor={colors.ink}
+                          style={styles.splitInput}
+                          accessibilityLabel={`${l?.name} ${splitMode === 'percent' ? 'percent' : splitMode === 'shares' ? 'shares' : 'amount'}`}
+                        />
+                        {splitMode === 'percent' ? <Text style={styles.splitUnit}>%</Text> : null}
+                        {splitMode === 'shares' ? <Text style={styles.splitUnit}>×</Text> : null}
+                      </View>
+                    ) : null}
+                    {splitMode !== 'amounts' ? (
+                      <Text style={styles.splitAmt}>{part != null ? `${ccy.symbol} ${grouped(part)}` : '–'}</Text>
+                    ) : null}
+                  </View>
+                );
+              })}
+              <Text style={[styles.splitStatus, split?.error ? { color: colors.bad } : { color: colors.good }]}>
+                {split?.error ? (value > 0 ? split.error : 'Enter the amount to split.') : `✓ Adds up to ${ccy.symbol} ${grouped(value)}`}
+              </Text>
+            </View>
           ) : !editing && lists.length > 1 ? (
             <Text style={type.bodySoft}>Pick more than one to split it.</Text>
           ) : null}
@@ -309,6 +382,18 @@ const styles = StyleSheet.create({
   },
   chipLabel: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.ink },
   group: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
+  splitBox: { borderWidth: 1.5, borderColor: colors.rule, borderRadius: 16, padding: 12, gap: 10 },
+  splitModes: { flexDirection: 'row', gap: 4, padding: 4, borderRadius: 12, backgroundColor: colors.soft },
+  splitMode: { flex: 1, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  splitModeOn: { backgroundColor: colors.ink },
+  splitModeText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.ink },
+  splitRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 40 },
+  splitName: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 15, color: colors.ink },
+  splitInputWrap: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 40, paddingHorizontal: 10, borderRadius: 10, backgroundColor: colors.soft },
+  splitInput: { minWidth: 56, textAlign: 'right', fontFamily: fonts.mono, fontSize: 15, color: colors.ink, padding: 0 },
+  splitUnit: { fontFamily: fonts.sans, fontSize: 14, color: colors.inkSoft },
+  splitAmt: { width: 96, textAlign: 'right', fontFamily: fonts.mono, fontSize: 15, color: colors.ink },
+  splitStatus: { fontFamily: fonts.sansMedium, fontSize: 13.5 },
   sumPreview: { fontFamily: fonts.mono, fontSize: 18, color: colors.inkSoft },
   ops: { flexDirection: 'row', gap: 10 },
   op: { width: 52, height: 40, borderRadius: 12, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },

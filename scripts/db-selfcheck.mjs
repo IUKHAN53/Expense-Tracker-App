@@ -13,6 +13,7 @@ import {
 } from '../src/backup/format.js';
 import { snapshotToCsv } from '../src/backup/csv.js';
 import { evaluate, isExpr } from '../src/support/calc.js';
+import { computeSplit, splitByWeights } from '../src/db/split.js';
 import { applyFilters, buildReport, change, cumulative, UNCATEGORISED } from '../src/db/report.js';
 
 // Minimal expo-sqlite-shaped adapter.
@@ -74,7 +75,7 @@ const split = await db.entries.create({
   spending_list_ids: [home.id, String(me.id)], item_name: 'Dinner', amount: 1001, purchased_at: '2026-11-05 20:00:00',
 });
 assert.equal(split.data.length, 2);
-assert.equal(split.split_share, 500.5);
+assert.deepEqual(split.split_amounts, [500.5, 500.5]);
 assert.ok(split.data.every((e) => e.split_group_id === split.split_group_id));
 await assert.rejects(db.entries.create({ spending_list_ids: [home.id, home.id], item_name: 'x', amount: 1 }), /different lists/);
 
@@ -312,6 +313,32 @@ assert.ok(isExpr('250+180') && !isExpr('250') && !isExpr('250+'));
   assert.equal(recent.filter((e) => e.item_name.toLowerCase() === 'pizza').length, 1, 'recent items are distinct');
   assert.ok(recent.every((e) => !e.fuel_liters));
   await assert.rejects(db.entries.restore(null), /Nothing to restore/);
+}
+
+// ---- Uneven splits ----
+assert.deepEqual(splitByWeights(100, [1, 1, 1]), [33.34, 33.33, 33.33]); // parts sum to the bill exactly
+assert.deepEqual(splitByWeights(1000, [2, 1, 1]), [500, 250, 250]);
+assert.equal(splitByWeights(0, [1, 1]), null);
+assert.deepEqual(computeSplit(1000, 'equal', [0, 0]).amounts, [500, 500]);
+assert.deepEqual(computeSplit(1000, 'percent', [60, 40]).amounts, [600, 400]);
+assert.match(computeSplit(1000, 'percent', [60, 30]).error, /90%/);
+assert.deepEqual(computeSplit(999, 'shares', [2, 1]).amounts, [666, 333]);
+assert.deepEqual(computeSplit(1000, 'amounts', [700, 300]).amounts, [700, 300]);
+assert.equal(computeSplit(1000, 'amounts', [700, 200]).remaining, 100);
+assert.match(computeSplit(1000, 'amounts', [700, 400]).error, /more than the bill/);
+assert.match(computeSplit(1000, 'equal', [0]).error, /at least two/);
+{
+  const L = (await db.lists.all()).data;
+  const [a, b] = [L[0].id, L[1].id];
+  const r = await db.entries.create({ spending_list_ids: [a, b], split_amounts: [750, 250], item_name: 'Rent share', amount: 1000 });
+  assert.deepEqual(r.data.map((e) => e.amount), [750, 250]);
+  assert.ok(r.data.every((e) => e.split_group_id === r.split_group_id));
+  await assert.rejects(db.entries.create({ spending_list_ids: [a, b], split_amounts: [750, 200], item_name: 'x', amount: 1000 }), /add up/);
+  await assert.rejects(db.entries.create({ spending_list_ids: [a, b], split_amounts: [1000], item_name: 'x', amount: 1000 }), /every list/);
+  const c = L[2]?.id ?? (await db.lists.create({ name: 'Split test', type: 'person' })).data.id;
+  const odd = await db.entries.create({ spending_list_ids: [a, b, c], item_name: 'Cake', amount: 100 });
+  assert.equal(odd.data.reduce((s, e) => s + e.amount, 0), 100);
+  for (const e of [...r.data, ...odd.data]) await db.entries.remove(e.id);
 }
 
 console.log('db self-check: all assertions passed');
