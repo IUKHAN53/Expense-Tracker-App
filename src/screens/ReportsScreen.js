@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getDb } from '../db';
-import { applyFilters, buildReport, change, UNCATEGORISED } from '../db/report';
+import { applyFilters, buildReport, change, cumulative, UNCATEGORISED } from '../db/report';
+import { monthKey } from '../db/month';
+import { Columns, Donut, Legend, PaceLine, slices } from '../components/charts';
 import { shareEntriesCsv } from '../backup';
 import { errorMessage } from '../support/errors';
 import { grouped } from '../support/currency';
@@ -31,6 +33,9 @@ const TABS = [
   { id: 'items', label: 'Items' },
 ];
 const SHOW = 60; // entries listed under the breakdown
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WEEKDAYS_LONG = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
@@ -78,6 +83,7 @@ function periodTitle(period, [from, to]) {
  */
 export default function ReportsScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
+  const chartW = useWindowDimensions().width - 40;
   const ccy = useCurrency();
   const toast = useToast();
 
@@ -122,7 +128,8 @@ export default function ReportsScreen({ route, navigation }) {
   const filters = { listIds, categoryIds, search };
   const filtered = useMemo(() => applyFilters(rows || [], filters), [rows, listIds, categoryIds, search]); // eslint-disable-line react-hooks/exhaustive-deps
   const report = useMemo(() => buildReport(filtered, ...range.cur, new Date()), [filtered, range]);
-  const prevTotal = useMemo(() => applyFilters(prevRows, filters).reduce((s, e) => s + e.amount, 0), [prevRows, listIds, categoryIds, search]); // eslint-disable-line react-hooks/exhaustive-deps
+  const prevReport = useMemo(() => buildReport(applyFilters(prevRows, filters), ...range.prev), [prevRows, range, listIds, categoryIds, search]); // eslint-disable-line react-hooks/exhaustive-deps
+  const prevTotal = prevReport.total;
   const delta = change(report.total, prevTotal);
 
   const toggle = (setter) => (id) => setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -147,6 +154,21 @@ export default function ReportsScreen({ route, navigation }) {
       : tab === 'items' ? report.topItems
         : report.byMonth.map((mo) => ({ key: mo.key, name: monthLabelShort(mo.key), total: mo.total, share: report.total ? mo.total / report.total : 0 }));
   const top = Math.max(...breakdown.map((b) => b.total), 1);
+  const pie = tab === 'category' || tab === 'list' ? slices(breakdown) : null;
+  const colorOf = new Map((pie || []).map((p) => [p.key, p.color]));
+
+  // Over time: days for ranges up to two months, months beyond that.
+  const daily = report.byDay.length <= 62;
+  const currentMonth = monthKey(new Date());
+  const timeData = daily
+    ? report.byDay.map((d) => ({ label: String(d.day), value: d.total, muted: d.future }))
+    : report.byMonth.map((mo) => ({ label: MONTHS[Number(mo.key.slice(5)) - 1], value: mo.total, muted: mo.key > currentMonth }));
+  const live = timeData.filter((d) => !d.muted);
+  const timeAvg = live.length ? live.reduce((s, d) => s + d.value, 0) / live.length : 0;
+  const busiest = report.byDay.reduce((a, d) => (d.total > (a?.total ?? 0) ? d : a), null);
+  const pace = cumulative(report.byDay.filter((d) => !d.future));
+  const prevPace = cumulative(prevReport.byDay);
+  const maxWeekday = Math.max(...report.byWeekday.map((w) => w.average));
   // Tapping a category or list row narrows the report to it.
   const onRow = tab === 'category' ? (b) => toggleCategory(b.key) : tab === 'list' ? (b) => toggleList(b.key) : null;
   const isOn = (b) => (tab === 'category' ? categoryIds.includes(b.key) : tab === 'list' ? listIds.includes(b.key) : false);
@@ -219,6 +241,33 @@ export default function ReportsScreen({ route, navigation }) {
 
         {report.count ? (
           <>
+            {/* Over time */}
+            <View style={styles.card}>
+              <Caps>Spending by {daily ? 'day' : 'month'}</Caps>
+              <Columns
+                data={timeData}
+                width={chartW - 32}
+                labelEvery={daily ? Math.ceil(timeData.length / 8) : Math.ceil(timeData.length / 12)}
+                format={(v) => `${ccy.symbol} ${grouped(v)}`}
+              />
+              <Legend items={[{ label: `Average ${ccy.symbol} ${grouped(timeAvg)} per ${daily ? 'day' : 'month'}`, color: colors.bad, dashed: true }]} />
+              {busiest && daily ? (
+                <Text style={styles.note}>Busiest day: {formatDate(`${busiest.key}T12:00:00`)} · {ccy.symbol} {grouped(busiest.total)}</Text>
+              ) : null}
+            </View>
+
+            {/* Pace */}
+            {prevReport.total > 0 ? (
+              <View style={styles.card}>
+                <Caps>Spending pace</Caps>
+                <PaceLine current={pace} previous={prevPace} width={chartW - 32} />
+                <Legend items={[
+                  { label: `This period · ${ccy.symbol} ${grouped(report.total)}`, color: colors.ink },
+                  { label: `Previous · ${ccy.symbol} ${grouped(prevReport.total)}`, color: colors.muted, dashed: true },
+                ]} />
+              </View>
+            ) : null}
+
             {/* Breakdown */}
             <View style={styles.tabs}>
               {TABS.map((t) => (
@@ -234,6 +283,15 @@ export default function ReportsScreen({ route, navigation }) {
               ))}
             </View>
             <View style={styles.section}>
+              {pie ? (
+                <View style={styles.donutWrap}>
+                  <Donut
+                    data={pie}
+                    center={`${ccy.symbol} ${grouped(report.total)}`}
+                    sub={`${breakdown.length} ${tab === 'list' ? 'lists' : 'categories'}`}
+                  />
+                </View>
+              ) : null}
               {breakdown.map((b) => (
                 <Pressable
                   key={String(b.key)}
@@ -244,6 +302,7 @@ export default function ReportsScreen({ route, navigation }) {
                   accessibilityLabel={`${b.name}, ${ccy.symbol} ${grouped(b.total)}`}
                 >
                   <View style={styles.barHead}>
+                    {pie ? <View style={[styles.dot, { backgroundColor: colorOf.get(b.key) || colors.rule }]} /> : null}
                     <Text style={styles.barName} numberOfLines={1}>
                       {isOn(b) ? '✓ ' : ''}{b.name}{b.count > 1 && tab === 'items' ? ` × ${b.count}` : ''}
                     </Text>
@@ -256,6 +315,22 @@ export default function ReportsScreen({ route, navigation }) {
                 </Pressable>
               ))}
               {onRow ? <Text style={[type.bodySoft, { paddingTop: 4 }]}>Tap a row to filter by it.</Text> : null}
+            </View>
+
+            {/* Day of week */}
+            <View style={[styles.card, { marginTop: 0 }]}>
+              <Caps>Average by day of week</Caps>
+              <Columns
+                data={report.byWeekday.map((w) => ({ label: WEEKDAYS[w.key], value: w.average, highlight: w.average === maxWeekday && w.average > 0 }))}
+                width={chartW - 32}
+                height={130}
+                showAverage={false}
+              />
+              {maxWeekday > 0 ? (
+                <Text style={styles.note}>
+                  You spend most on {WEEKDAYS_LONG[report.byWeekday.findIndex((w) => w.average === maxWeekday)]}s: {ccy.symbol} {grouped(maxWeekday)} on average.
+                </Text>
+              ) : null}
             </View>
 
             {/* Entries */}
@@ -378,6 +453,10 @@ const styles = StyleSheet.create({
   tabText: { fontFamily: fonts.sansMedium, fontSize: 13.5, color: colors.ink },
   section: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24, gap: 14 },
   barRow: { gap: 6 },
+  card: { marginHorizontal: 20, marginBottom: 16, padding: 16, borderRadius: 18, borderWidth: 1.5, borderColor: colors.rule, gap: 8 },
+  note: { fontFamily: fonts.sans, fontSize: 13, color: colors.inkSoft, paddingTop: 4 },
+  donutWrap: { alignItems: 'center', paddingVertical: 8 },
+  dot: { width: 10, height: 10, borderRadius: 5, alignSelf: 'center' },
   barHead: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
   barName: { flex: 1, fontFamily: fonts.sansMedium, fontSize: 15, color: colors.ink },
   barAmt: { fontFamily: fonts.mono, fontSize: 14, color: colors.ink },

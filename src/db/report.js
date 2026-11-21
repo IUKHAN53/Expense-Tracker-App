@@ -50,6 +50,29 @@ export function buildReport(entries, from, to, asOf = to) {
   }
   const byMonth = months.map((k) => ({ key: k, total: r2(perMonth.get(k)) }));
 
+  // Every day in the range (local days); days after asOf are flagged so charts can grey them.
+  const dayKey = (d) => `${monthKey(d)}-${String(d.getDate()).padStart(2, '0')}`;
+  const perDay = new Map();
+  for (const e of entries) {
+    const k = dayKey(new Date(e.purchased_at));
+    perDay.set(k, (perDay.get(k) || 0) + e.amount);
+  }
+  const byDay = [];
+  const weekdaySum = [0, 0, 0, 0, 0, 0, 0]; // Monday first
+  const weekdayDays = [0, 0, 0, 0, 0, 0, 0];
+  for (let d = new Date(from); d < to; d.setDate(d.getDate() + 1)) {
+    const k = dayKey(d);
+    const v = perDay.get(k) || 0;
+    const future = d >= end;
+    byDay.push({ key: k, day: d.getDate(), total: r2(v), future });
+    if (!future) {
+      const w = (d.getDay() + 6) % 7;
+      weekdaySum[w] += v;
+      weekdayDays[w] += 1;
+    }
+  }
+  const byWeekday = weekdaySum.map((v, i) => ({ key: i, average: weekdayDays[i] ? r2(v / weekdayDays[i]) : 0 }));
+
   return {
     total,
     count: entries.length,
@@ -59,6 +82,8 @@ export function buildReport(entries, from, to, asOf = to) {
     byCategory: group(entries, (e) => e.category_id ?? UNCATEGORISED, (e) => e.category?.name || 'Uncategorised', total),
     byList: group(entries, (e) => e.spending_list_id, (e) => e.spending_list?.name || 'List', total),
     byMonth,
+    byDay,
+    byWeekday,
     topItems: group(entries, (e) => e.item_name.trim().toLowerCase(), (e) => e.item_name.trim(), total).slice(0, 10),
   };
 }
@@ -66,4 +91,10 @@ export function buildReport(entries, from, to, asOf = to) {
 /** Change against the previous period, as a fraction (0.12 = 12% more). null when there's nothing to compare. */
 export function change(current, previous) {
   return previous > 0 ? (current - previous) / previous : null;
+}
+
+/** Running total per day, for "spending pace" lines. */
+export function cumulative(byDay) {
+  let run = 0;
+  return byDay.map((d) => { run += d.total; return r2(run); });
 }

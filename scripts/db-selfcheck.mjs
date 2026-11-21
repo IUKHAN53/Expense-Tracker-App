@@ -12,7 +12,7 @@ import {
   decryptBackup, encryptBackup, fromBase64, readBackupFile, toBase64, utf8Decode, utf8Encode,
 } from '../src/backup/format.js';
 import { snapshotToCsv } from '../src/backup/csv.js';
-import { applyFilters, buildReport, change, UNCATEGORISED } from '../src/db/report.js';
+import { applyFilters, buildReport, change, cumulative, UNCATEGORISED } from '../src/db/report.js';
 
 // Minimal expo-sqlite-shaped adapter.
 function adapter() {
@@ -274,6 +274,13 @@ assert.ok(csv.includes(`"'=HYPERLINK(""x"")"`)); // formula neutralised
   assert.equal(buildReport([], from, to).total, 0);
   assert.equal(buildReport(rows, from, to, new Date(2027, 0, 11)).days, 10); // in progress: days elapsed so far
   assert.equal(change(120, 100), 0.2); assert.equal(change(5, 0), null);
+  assert.equal(rep.byDay.length, 59);
+  assert.deepEqual(rep.byDay.filter((d) => d.total).map((d) => [d.key, d.total]), [['2027-01-03', 300], ['2027-02-01', 200], ['2027-02-15', 500]]);
+  assert.equal(cumulative(rep.byDay).at(-1), 1000);
+  // Weekday averages: 3 Jan 2027 is a Sunday (index 6); January–February has 9 Sundays.
+  assert.equal(rep.byWeekday[6].average, 33.33);
+  const live = buildReport(rows, from, to, new Date(2027, 0, 11));
+  assert.equal(live.byDay.filter((d) => !d.future).length, 10);
 }
 
 console.log('db self-check: all assertions passed');
