@@ -135,3 +135,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center',
   },
 });
+
+/** Open an entry in the right editor: refills go to the fuel form, the rest to Add/Edit expense. */
+export function openEntry(navigation, e) {
+  if (e.fuel_liters) {
+    navigation.navigate('FuelEntry', {
+      entry: {
+        id: e.id, amount: e.amount, rate: e.fuel_rate, odometer: e.odometer,
+        fuel_type: e.fuel_type, is_full_tank: e.is_full_tank, notes: e.notes, date: e.purchased_at,
+      },
+    });
+  } else {
+    navigation.navigate('AddEntry', { entry: e });
+  }
+}

@@ -48,6 +48,11 @@ export async function shareCsv() {
   await shareText(`kharcha-${today()}.csv`, snapshotToCsv(await db.exportAll()), 'text/csv', 'Export expenses');
 }
 
+/** CSV of just these entries (e.g. a filtered report). */
+export async function shareEntriesCsv(entries, lists, categories) {
+  await shareText(`kharcha-report-${today()}.csv`, snapshotToCsv({ lists, categories, entries }), 'text/csv', 'Export report');
+}
+
 /** Let the user pick a file. Resolves null if they cancel. */
 export async function pickBackupFile() {
   const res = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });

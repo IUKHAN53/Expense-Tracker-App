@@ -21,6 +21,8 @@ export default function AddEntryScreen({ route, navigation }) {
   const toast = useToast();
   const editing = route.params?.entry || null;
   const presetListId = route.params?.listId || null;
+  const copyOf = route.params?.copyOf || null; // "Duplicate": a new entry prefilled from an old one
+  const src = editing || copyOf;
   const amountRef = useRef(null);
 
   const [lists, setLists] = useState(null);
@@ -30,11 +32,11 @@ export default function AddEntryScreen({ route, navigation }) {
 
   // Several list ids = split equally between them. Editing is single-list.
   const [listIds, setListIds] = useState(
-    editing ? [editing.spending_list_id] : presetListId ? [presetListId] : [],
+    src ? [src.spending_list_id] : presetListId ? [presetListId] : [],
   );
-  const [categoryId, setCategoryId] = useState(editing?.category_id ?? null);
-  const [amount, setAmount] = useState(editing ? String(editing.amount) : '');
-  const [note, setNote] = useState(editing?.item_name ?? '');
+  const [categoryId, setCategoryId] = useState(src?.category_id ?? null);
+  const [amount, setAmount] = useState(src ? String(src.amount) : '');
+  const [note, setNote] = useState(src?.item_name ?? '');
   const [purchasedAt, setPurchasedAt] = useState(editing ? new Date(editing.purchased_at) : new Date());
   const [pickingDate, setPickingDate] = useState(false);
 
@@ -50,13 +52,13 @@ export default function AddEntryScreen({ route, navigation }) {
         setLists(l.data);
         setCategories(c.data);
         // One list? Pre-pick it so saving is a single tap.
-        if (!editing && !presetListId && l.data.length === 1) setListIds([l.data[0].id]);
+        if (!src && !presetListId && l.data.length === 1) setListIds([l.data[0].id]);
       } catch (e) {
         setError(errorMessage(e));
         setLists([]);
       }
     })();
-  }, [editing, presetListId]);
+  }, [src, presetListId]);
 
   const value = Number(String(amount).replace(/,/g, ''));
   const valid = value > 0 && listIds.length > 0;
@@ -203,9 +205,18 @@ export default function AddEntryScreen({ route, navigation }) {
 
       <View style={[styles.bar, { paddingBottom: 16 + insets.bottom }]}>
         {editing ? (
-          <Pressable onPress={remove} style={styles.deleteBtn} accessibilityLabel="Delete expense">
-            <Ionicons name="trash-outline" size={22} color={colors.bad} />
-          </Pressable>
+          <>
+            <Pressable onPress={remove} style={styles.deleteBtn} accessibilityLabel="Delete expense">
+              <Ionicons name="trash-outline" size={22} color={colors.bad} />
+            </Pressable>
+            <Pressable
+              onPress={() => navigation.replace('AddEntry', { copyOf: editing })}
+              style={styles.deleteBtn}
+              accessibilityLabel="Duplicate expense"
+            >
+              <Ionicons name="copy-outline" size={22} color={colors.ink} />
+            </Pressable>
+          </>
         ) : null}
         <Pressable
           onPress={save}

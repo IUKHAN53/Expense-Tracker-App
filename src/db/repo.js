@@ -234,6 +234,15 @@ export function createRepo(db, { uuid }) {
       return { data, total: r2(data.reduce((s, e) => s + e.amount, 0)) };
     },
 
+    /** Every entry with from <= purchased_at < to, newest first (no row cap: reports need all of them). */
+    async inRange(from, to) {
+      const rows = await db.getAllAsync(
+        `${ENTRY_SELECT} WHERE e.purchased_at >= ? AND e.purchased_at < ? ORDER BY e.purchased_at DESC, e.id DESC`,
+        [toIso(from), toIso(to)],
+      );
+      return rows.map(presentEntry);
+    },
+
     async get(id) {
       return { data: await getEntry(id) };
     },

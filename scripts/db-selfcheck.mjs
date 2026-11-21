@@ -12,6 +12,7 @@ import {
   decryptBackup, encryptBackup, fromBase64, readBackupFile, toBase64, utf8Decode, utf8Encode,
 } from '../src/backup/format.js';
 import { snapshotToCsv } from '../src/backup/csv.js';
+import { applyFilters, buildReport, change, UNCATEGORISED } from '../src/db/report.js';
 
 // Minimal expo-sqlite-shaped adapter.
 function adapter() {
@@ -243,5 +244,36 @@ const lines = csv.split('\r\n');
 assert.match(lines[0], /^date,list,category,item,amount/);
 assert.ok(lines[1].includes('"Eggs, ""large"""')); // oldest first, quotes escaped
 assert.ok(csv.includes(`"'=HYPERLINK(""x"")"`)); // formula neutralised
+
+// ---- Reports ----
+{
+  const L = (await db.lists.all()).data;
+  const C = (await db.categories.all()).data;
+  const home = L.find((l) => l.name === 'Home'); const car = L.find((l) => l.type === 'vehicle');
+  const groc = C.find((c) => c.name === 'Groceries') || (await db.categories.create({ name: 'Groceries' })).data;
+  const from = new Date(2027, 0, 1), mid = new Date(2027, 1, 15, 1, 0), to = new Date(2027, 2, 1);
+  await db.entries.createMany([
+    { spending_list_id: home.id, category_id: groc.id, item_name: 'Milk', amount: 300, purchased_at: new Date(2027, 0, 3) },
+    { spending_list_id: home.id, category_id: groc.id, item_name: 'milk ', amount: 200, purchased_at: new Date(2027, 1, 1, 0, 30) },
+    { spending_list_id: car.id, item_name: 'Car wash', amount: 500, notes: 'shell', purchased_at: mid },
+    { spending_list_id: home.id, item_name: 'Outside', amount: 999, purchased_at: new Date(2027, 2, 1) },
+  ]);
+  const rows = await db.entries.inRange(from, to);
+  assert.equal(rows.length, 3, 'inRange excludes the end bound');
+  const rep = buildReport(rows, from, to);
+  assert.equal(rep.total, 1000);
+  assert.equal(rep.days, 59);
+  assert.deepEqual(rep.byMonth.map((m) => [m.key, m.total]), [['2027-01', 300], ['2027-02', 700]]); // local-month buckets
+  assert.equal(rep.topItems[0].name, 'Car wash'); assert.equal(rep.topItems[1].total, 500); // "Milk" + "milk " merged
+  assert.equal(rep.byCategory.find((c) => c.key === UNCATEGORISED).total, 500);
+  assert.equal(rep.largest.item_name, 'Car wash');
+  assert.equal(applyFilters(rows, { listIds: [car.id] }).length, 1);
+  assert.equal(applyFilters(rows, { categoryIds: [UNCATEGORISED] }).length, 1);
+  assert.equal(applyFilters(rows, { search: 'SHELL' }).length, 1);
+  assert.equal(applyFilters(rows, { listIds: [home.id], categoryIds: [groc.id], search: 'milk' }).length, 2);
+  assert.equal(buildReport([], from, to).total, 0);
+  assert.equal(buildReport(rows, from, to, new Date(2027, 0, 11)).days, 10); // in progress: days elapsed so far
+  assert.equal(change(120, 100), 0.2); assert.equal(change(5, 0), null);
+}
 
 console.log('db self-check: all assertions passed');

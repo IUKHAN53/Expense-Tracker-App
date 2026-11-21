@@ -101,6 +101,15 @@ export default function HomeScreen({ navigation }) {
                   {diff <= 0 ? ' less' : ' more'} than {monthLabel(data.prevMonth).split(' ')[0]}
                 </Text>
               ) : null}
+              <Pressable
+                onPress={() => navigation.navigate('Reports')}
+                style={({ pressed }) => [styles.reportLink, pressed && { opacity: 0.6 }]}
+                accessibilityRole="button"
+              >
+                <Ionicons name="bar-chart-outline" size={16} color={colors.ink} />
+                <Text style={styles.link}>See reports</Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.ink} />
+              </Pressable>
             </View>
 
             <View style={styles.section}>
@@ -170,6 +179,7 @@ const styles = StyleSheet.create({
   hero: { paddingHorizontal: 20, paddingTop: 36, paddingBottom: 28, gap: 6 },
   heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   heroSymbol: { fontFamily: fonts.sansMedium, fontSize: 22, color: colors.inkSoft },
+  reportLink: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingTop: 10, paddingVertical: 6 },
   section: { paddingBottom: 28 },
   sectionHead: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline',
