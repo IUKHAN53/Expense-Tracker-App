@@ -12,6 +12,7 @@ import {
   decryptBackup, encryptBackup, fromBase64, readBackupFile, toBase64, utf8Decode, utf8Encode,
 } from '../src/backup/format.js';
 import { snapshotToCsv } from '../src/backup/csv.js';
+import { evaluate, isExpr } from '../src/support/calc.js';
 import { applyFilters, buildReport, change, cumulative, UNCATEGORISED } from '../src/db/report.js';
 
 // Minimal expo-sqlite-shaped adapter.
@@ -281,6 +282,36 @@ assert.ok(csv.includes(`"'=HYPERLINK(""x"")"`)); // formula neutralised
   assert.equal(rep.byWeekday[6].average, 33.33);
   const live = buildReport(rows, from, to, new Date(2027, 0, 11));
   assert.equal(live.byDay.filter((d) => !d.future).length, 10);
+}
+
+// ---- Amount calculator ----
+assert.equal(evaluate('250+180'), 430);
+assert.equal(evaluate('3*450-50'), 1300);
+assert.equal(evaluate('1200/3'), 400);
+assert.equal(evaluate('10+2*3'), 16);
+assert.equal(evaluate('100÷3'), 33.33);
+assert.equal(evaluate('99.5'), 99.5);
+assert.equal(evaluate('5/0'), null);
+assert.equal(evaluate('12+'), null);
+assert.equal(evaluate(''), null);
+assert.ok(isExpr('250+180') && !isExpr('250') && !isExpr('250+'));
+
+// ---- Undo delete + recent items ----
+{
+  const L = (await db.lists.all()).data;
+  const home = L.find((l) => l.name === 'Home');
+  const made = await db.entries.create({ spending_list_ids: [home.id, L.find((l) => l.id !== home.id).id], item_name: 'Pizza', amount: 1000 });
+  const one = made.data[0];
+  const gone = await db.entries.remove(one.id);
+  await assert.rejects(db.entries.get(one.id), /not found/);
+  const back = await db.entries.restore(gone.row);
+  assert.equal(back.data.id, one.id);
+  assert.equal(back.data.split_group_id, made.split_group_id);
+  assert.equal(back.data.amount, 500);
+  const recent = await db.entries.recentItems(50);
+  assert.equal(recent.filter((e) => e.item_name.toLowerCase() === 'pizza').length, 1, 'recent items are distinct');
+  assert.ok(recent.every((e) => !e.fuel_liters));
+  await assert.rejects(db.entries.restore(null), /Nothing to restore/);
 }
 
 console.log('db self-check: all assertions passed');

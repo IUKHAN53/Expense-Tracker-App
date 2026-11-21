@@ -18,6 +18,7 @@ const ToastContext = createContext({
   success: () => {},
   error: () => {},
   info: () => {},
+  undo: () => {},
 });
 
 const VARIANTS = {
@@ -49,10 +50,10 @@ export function ToastProvider({ children }) {
   }, [opacity, translateY]);
 
   const show = useCallback(
-    (message, type = 'info', duration = DEFAULT_DURATION) => {
+    (message, type = 'info', duration = DEFAULT_DURATION, action = null) => {
       if (!message) return;
       if (hideTimer.current) clearTimeout(hideTimer.current);
-      setToast({ message: String(message), type });
+      setToast({ message: String(message), type, action });
       translateY.setValue(20);
       opacity.setValue(0);
       Animated.parallel([
@@ -74,12 +75,14 @@ export function ToastProvider({ children }) {
     success: (m, d) => show(m, 'success', d),
     error: (m, d) => show(m, 'error', d),
     info: (m, d) => show(m, 'info', d),
+    undo: (m, onUndo) => show(m, 'success', 6000, { label: 'Undo', onPress: onUndo }),
   });
   // Keep the stable api object pointing at the latest closures.
   api.current.show = show;
   api.current.success = (m, d) => show(m, 'success', d);
   api.current.error = (m, d) => show(m, 'error', d);
   api.current.info = (m, d) => show(m, 'info', d);
+  api.current.undo = (m, onUndo) => show(m, 'success', 6000, { label: 'Undo', onPress: onUndo });
 
   useEffect(() => () => hideTimer.current && clearTimeout(hideTimer.current), []);
 
@@ -99,6 +102,16 @@ export function ToastProvider({ children }) {
               <Text style={styles.text} numberOfLines={3}>
                 {toast.message}
               </Text>
+              {toast.action ? (
+                <Pressable
+                  onPress={() => { const a = toast.action; hide(); a.onPress(); }}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  style={styles.action}
+                >
+                  <Text style={styles.actionText}>{toast.action.label}</Text>
+                </Pressable>
+              ) : null}
             </Pressable>
           </Animated.View>
         </View>
@@ -141,4 +154,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 19,
   },
+  action: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.primary },
+  actionText: { fontFamily: fonts.sansSemibold, fontSize: 14, color: colors.ink },
 });

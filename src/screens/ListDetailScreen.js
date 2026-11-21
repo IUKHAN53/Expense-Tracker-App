@@ -14,7 +14,7 @@ import { EmptyState, Loading } from '../components/ui';
 export default function ListDetailScreen({ route, navigation }) {
   const { list } = route.params;
   const ccy = useCurrency();
-  const [month, setMonth] = useState(currentMonthKey);
+  const [month, setMonth] = useState(route.params?.month || currentMonthKey());
   const isCurrent = month === currentMonthKey();
   const [entries, setEntries] = useState(null);
   const [total, setTotal] = useState(0);

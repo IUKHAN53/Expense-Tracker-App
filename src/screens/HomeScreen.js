@@ -10,9 +10,13 @@ import { on, EVENTS } from '../support/events';
 import { colors, currentMonthKey, fonts, monthLabel, shiftMonth, type } from '../theme';
 import { useCurrency } from '../hooks/useMoney';
 import { Brand } from '../components/Logo';
-import { ActionBar, Caps, EntryRow, IconButton, PrimaryAction, SquareAction } from '../components/kit';
+import { ActionBar, Caps, EntryRow, IconButton, openEntry, PrimaryAction, SquareAction } from '../components/kit';
+import { useBackupFlows } from '../backup/useBackupFlows';
 import { EmptyState, Loading } from '../components/ui';
 import { ShareSheet } from '../components/ShareSheet';
+
+const DAY = 86400000;
+const BACKUP_EVERY = 14 * DAY;
 
 export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -21,40 +25,43 @@ export default function HomeScreen({ navigation }) {
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [month, setMonth] = useState(currentMonthKey);
+  const isCurrent = month === currentMonthKey();
 
   const load = useCallback(async () => {
     try {
       setError('');
-      const month = currentMonthKey();
       const db = await getDb();
-      const [summary, prev, recent] = await Promise.all([
+      const [summary, prev, recent, any, lastBackup, snooze] = await Promise.all([
         db.summary({ month }),
         db.summary({ month: shiftMonth(month, -1) }),
         db.entries.list({ month, limit: 8 }),
+        db.entries.list({ limit: 1 }),
+        db.settings.get('last_backup_at'),
+        db.settings.get('backup_snooze_until'),
       ]);
-      setData({ month, summary, prevTotal: prev.grand_total, prevMonth: prev.month, recent: recent.data });
+      // Data lives only on this phone: nudge for a backup every two weeks once there is something to lose.
+      const stale = !lastBackup || Date.now() - new Date(lastBackup) > BACKUP_EVERY;
+      const snoozed = snooze && Date.now() < new Date(snooze);
+      setData({
+        month, summary, prevTotal: prev.grand_total, prevMonth: prev.month, recent: recent.data,
+        nudge: any.data.length > 0 && stale && !snoozed, lastBackup,
+      });
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [month]);
+
+  const { startBackup, ui: backupUi } = useBackupFlows({ onBackedUp: load });
+  const snoozeBackup = async () => {
+    await (await getDb()).settings.set('backup_snooze_until', new Date(Date.now() + 3 * DAY).toISOString());
+    load();
+  };
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useEffect(() => on(EVENTS.ENTRIES_CHANGED, load), [load]);
-
-  const openEntry = (e) => {
-    if (e.fuel_liters) {
-      navigation.navigate('FuelEntry', {
-        entry: {
-          id: e.id, amount: e.amount, rate: e.fuel_rate, odometer: e.odometer,
-          fuel_type: e.fuel_type, is_full_tank: e.is_full_tank, notes: e.notes, date: e.purchased_at,
-        },
-      });
-    } else {
-      navigation.navigate('AddEntry', { entry: e });
-    }
-  };
 
   if (!data && !error) return <Loading />;
 
@@ -88,7 +95,22 @@ export default function HomeScreen({ navigation }) {
         {data ? (
           <>
             <View style={styles.hero}>
-              <Caps>Spent in {monthLabel(data.month).split(' ')[0]}</Caps>
+              <View style={styles.monthRow}>
+                <Pressable onPress={() => setMonth((m) => shiftMonth(m, -1))} hitSlop={10} accessibilityLabel="Previous month" style={styles.monthBtn}>
+                  <Ionicons name="chevron-back" size={16} color={colors.ink} />
+                </Pressable>
+                <Caps>{isCurrent ? `Spent in ${monthLabel(data.month).split(' ')[0]}` : `Spent in ${monthLabel(data.month)}`}</Caps>
+                {!isCurrent ? (
+                  <>
+                    <Pressable onPress={() => setMonth((m) => shiftMonth(m, 1))} hitSlop={10} accessibilityLabel="Next month" style={styles.monthBtn}>
+                      <Ionicons name="chevron-forward" size={16} color={colors.ink} />
+                    </Pressable>
+                    <Pressable onPress={() => setMonth(currentMonthKey())} hitSlop={8} accessibilityRole="button">
+                      <Text style={styles.link}>Today</Text>
+                    </Pressable>
+                  </>
+                ) : null}
+              </View>
               <View style={styles.heroRow}>
                 <Text style={styles.heroSymbol}>{ccy.symbol}</Text>
                 <Text style={type.hero} numberOfLines={1} adjustsFontSizeToFit>{grouped(total)}</Text>
@@ -112,6 +134,20 @@ export default function HomeScreen({ navigation }) {
               </Pressable>
             </View>
 
+            {data.nudge ? (
+              <View style={styles.nudge}>
+                <Ionicons name="shield-checkmark-outline" size={22} color={colors.ink} />
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={styles.nudgeTitle}>{data.lastBackup ? 'Time for a backup' : 'Back up your data'}</Text>
+                  <Text style={[type.body, { fontSize: 14 }]}>Your expenses live only on this phone. Save an encrypted copy in case it's lost.</Text>
+                  <View style={{ flexDirection: 'row', gap: 16, paddingTop: 8 }}>
+                    <Pressable onPress={startBackup} hitSlop={8} accessibilityRole="button"><Text style={[styles.link, { textDecorationLine: 'underline' }]}>Back up now</Text></Pressable>
+                    <Pressable onPress={snoozeBackup} hitSlop={8} accessibilityRole="button"><Text style={[styles.link, { color: colors.inkSoft }]}>Later</Text></Pressable>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
             <View style={styles.section}>
               <View style={styles.sectionHead}>
                 <Caps>Lists</Caps>
@@ -124,7 +160,7 @@ export default function HomeScreen({ navigation }) {
                 {[...data.summary.lists].sort((a, b) => b.total - a.total).map((l) => (
                   <Pressable
                     key={l.id}
-                    onPress={() => navigation.navigate('ListDetail', { list: l })}
+                    onPress={() => navigation.navigate('ListDetail', { list: l, month })}
                     style={({ pressed }) => [styles.listCol, pressed && { opacity: 0.6 }]}
                   >
                     <Text style={type.label} numberOfLines={1}>{l.name}</Text>
@@ -143,10 +179,10 @@ export default function HomeScreen({ navigation }) {
               <Caps style={{ paddingBottom: 4 }}>Recent</Caps>
               {data.recent.length ? (
                 data.recent.map((e, i) => (
-                  <EntryRow key={e.id} entry={e} last={i === data.recent.length - 1} onPress={() => openEntry(e)} />
+                  <EntryRow key={e.id} entry={e} last={i === data.recent.length - 1} onPress={() => openEntry(navigation, e)} />
                 ))
               ) : (
-                <EmptyState icon="receipt-outline" title="Nothing yet this month" subtitle="Add your first expense below." />
+                <EmptyState icon="receipt-outline" title={isCurrent ? 'Nothing yet this month' : `Nothing in ${monthLabel(month)}`} subtitle={isCurrent ? 'Add your first expense below.' : undefined} />
               )}
             </View>
           </>
@@ -160,6 +196,7 @@ export default function HomeScreen({ navigation }) {
       </ActionBar>
 
       <ShareSheet visible={shareOpen} onClose={() => setShareOpen(false)} />
+      {backupUi}
     </View>
   );
 }
@@ -179,6 +216,10 @@ const styles = StyleSheet.create({
   hero: { paddingHorizontal: 20, paddingTop: 36, paddingBottom: 28, gap: 6 },
   heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
   heroSymbol: { fontFamily: fonts.sansMedium, fontSize: 22, color: colors.inkSoft },
+  monthRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  monthBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  nudge: { flexDirection: 'row', gap: 12, marginHorizontal: 20, marginBottom: 24, padding: 16, borderRadius: 16, backgroundColor: colors.primary },
+  nudgeTitle: { fontFamily: fonts.sansSemibold, fontSize: 16, color: colors.ink },
   reportLink: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingTop: 10, paddingVertical: 6 },
   section: { paddingBottom: 28 },
   sectionHead: {

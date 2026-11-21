@@ -171,23 +171,25 @@ export default function FuelEntryScreen({ route, navigation }) {
     }
   };
 
-  const remove = () => Alert.alert('Delete refill', 'Remove this refill permanently?', [
-    { text: 'Cancel', style: 'cancel' },
-    {
-      text: 'Delete',
-      style: 'destructive',
-      onPress: async () => {
+  // No confirm: deleting shows an Undo toast instead.
+  const remove = async () => {
+    try {
+      const db = await getDb();
+      const { row } = await db.entries.remove(editing.id);
+      emit(EVENTS.ENTRIES_CHANGED);
+      toast.undo('Refill deleted.', async () => {
         try {
-          await (await getDb()).entries.remove(editing.id);
+          await db.entries.restore(row);
           emit(EVENTS.ENTRIES_CHANGED);
-          toast.success('Refill deleted.');
-          navigation.goBack();
-        } catch (e) {
-          toast.error(errorMessage(e, 'Could not delete the refill.'));
+        } catch (err) {
+          toast.error(errorMessage(err, 'Couldn’t restore it.'));
         }
-      },
-    },
-  ]);
+      });
+      navigation.goBack();
+    } catch (e) {
+      toast.error(errorMessage(e, 'Could not delete the refill.'));
+    }
+  };
 
   if (!ready) return <Loading />;
 

@@ -309,9 +309,36 @@ export function createRepo(db, { uuid }) {
       return { data: await getEntry(id) };
     },
 
+    /** Deletes one entry and returns its raw row, so the UI can offer Undo. */
     async remove(id) {
+      const row = await db.getFirstAsync('SELECT * FROM entries WHERE id = ?', [id]);
       await db.runAsync('DELETE FROM entries WHERE id = ?', [id]);
-      return { message: 'Entry deleted.' };
+      return { message: 'Entry deleted.', row };
+    },
+
+    /** Put back a row returned by remove() exactly as it was (same id, split link). */
+    async restore(row) {
+      if (!row?.id) throw new Error('Nothing to restore.');
+      await mustExist('spending_lists', row.spending_list_id, 'List');
+      await insert('entries', row);
+      return { data: await getEntry(row.id) };
+    },
+
+    /** Recent distinct items (not refills) for quick re-entry, newest first. */
+    async recentItems(limit = 8) {
+      const rows = await db.getAllAsync(
+        `${ENTRY_SELECT} WHERE e.fuel_liters IS NULL ORDER BY e.purchased_at DESC, e.id DESC LIMIT 200`,
+      );
+      const seen = new Set();
+      const out = [];
+      for (const e of rows.map(presentEntry)) {
+        const k = e.item_name.trim().toLowerCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(e);
+        if (out.length >= limit) break;
+      }
+      return out;
     },
   };
 

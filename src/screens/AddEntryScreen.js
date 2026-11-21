@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getDb } from '../db';
 import { errorMessage } from '../support/errors';
 import { grouped } from '../support/currency';
+import { cleanExpr, evaluate, isExpr } from '../support/calc';
 import { emit, EVENTS } from '../support/events';
 import { colors, fonts, type } from '../theme';
 import { useCurrency } from '../hooks/useMoney';
@@ -39,6 +40,8 @@ export default function AddEntryScreen({ route, navigation }) {
   const [note, setNote] = useState(src?.item_name ?? '');
   const [purchasedAt, setPurchasedAt] = useState(editing ? new Date(editing.purchased_at) : new Date());
   const [pickingDate, setPickingDate] = useState(false);
+  const [amountFocused, setAmountFocused] = useState(false);
+  const [recent, setRecent] = useState([]);
 
   useLayoutEffect(() => {
     navigation.setOptions({ title: editing ? 'Edit expense' : 'New expense' });
@@ -48,9 +51,10 @@ export default function AddEntryScreen({ route, navigation }) {
     (async () => {
       try {
         const db = await getDb();
-        const [l, c] = await Promise.all([db.lists.all(), db.categories.all()]);
+        const [l, c, r] = await Promise.all([db.lists.all(), db.categories.all(), src ? [] : db.entries.recentItems(8)]);
         setLists(l.data);
         setCategories(c.data);
+        setRecent(r);
         // One list? Pre-pick it so saving is a single tap.
         if (!src && !presetListId && l.data.length === 1) setListIds([l.data[0].id]);
       } catch (e) {
@@ -60,7 +64,14 @@ export default function AddEntryScreen({ route, navigation }) {
     })();
   }, [src, presetListId]);
 
-  const value = Number(String(amount).replace(/,/g, ''));
+  const sum = isExpr(amount); // "250+180" works as an amount
+  const value = sum ? (evaluate(amount) ?? 0) : Number(String(amount).replace(/,/g, ''));
+  const useRecent = (e) => {
+    setAmount(String(e.amount));
+    setNote(e.item_name);
+    setCategoryId(e.category_id);
+    setListIds([e.spending_list_id]);
+  };
   const valid = value > 0 && listIds.length > 0;
   const share = listIds.length > 1 && value > 0 ? Math.round((value / listIds.length) * 100) / 100 : 0;
   const category = useMemo(() => categories.find((c) => c.id === categoryId), [categories, categoryId]);
@@ -99,23 +110,25 @@ export default function AddEntryScreen({ route, navigation }) {
     }
   };
 
-  const remove = () => Alert.alert('Delete expense', 'Remove this entry permanently?', [
-    { text: 'Cancel', style: 'cancel' },
-    {
-      text: 'Delete',
-      style: 'destructive',
-      onPress: async () => {
+  // No confirm: deleting shows an Undo toast instead.
+  const remove = async () => {
+    try {
+      const db = await getDb();
+      const { row } = await db.entries.remove(editing.id);
+      emit(EVENTS.ENTRIES_CHANGED);
+      toast.undo('Expense deleted.', async () => {
         try {
-          await (await getDb()).entries.remove(editing.id);
+          await db.entries.restore(row);
           emit(EVENTS.ENTRIES_CHANGED);
-          toast.success('Expense deleted.');
-          navigation.goBack();
-        } catch (e) {
-          toast.error(errorMessage(e, 'Could not delete the expense.'));
+        } catch (err) {
+          toast.error(errorMessage(err, 'Couldn’t restore it.'));
         }
-      },
-    },
-  ]);
+      });
+      navigation.goBack();
+    } catch (e) {
+      toast.error(errorMessage(e, 'Could not delete the expense.'));
+    }
+  };
 
   if (!lists) return <Loading />;
 
@@ -128,22 +141,54 @@ export default function AddEntryScreen({ route, navigation }) {
             <TextInput
               ref={amountRef}
               value={amount}
-              onChangeText={(t) => setAmount(t.replace(/[^0-9.]/g, ''))}
+              onChangeText={(t) => setAmount(cleanExpr(t))}
+              onFocus={() => setAmountFocused(true)}
+              onBlur={() => setAmountFocused(false)}
               placeholder="0"
               placeholderTextColor={colors.rule}
               keyboardType="decimal-pad"
               autoFocus={!editing}
               selectionColor={colors.primary}
               cursorColor={colors.primary}
-              style={styles.amountInput}
+              style={[styles.amountInput, sum && { fontSize: 44, letterSpacing: -1.5 }]}
               accessibilityLabel="Amount"
             />
           </View>
+          {sum ? <Text style={styles.sumPreview}>= {ccy.symbol} {grouped(value)}</Text> : null}
+          {amountFocused ? (
+            <View style={styles.ops}>
+              {['+', '−', '×', '÷'].map((op) => (
+                <Pressable
+                  key={op}
+                  onPress={() => setAmount((a) => (a && !/[+\-*/]$/.test(a) ? a + cleanExpr(op === '−' ? '-' : op) : a))}
+                  style={styles.op}
+                  accessibilityRole="button"
+                  accessibilityLabel={{ '+': 'plus', '−': 'minus', '×': 'times', '÷': 'divided by' }[op]}
+                >
+                  <Text style={styles.opText}>{op}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
           <Pressable onPress={() => setPickingDate(true)} style={styles.dateChip} accessibilityRole="button">
             <Ionicons name="calendar-outline" size={14} color={colors.ink} />
             <Text style={styles.chipLabel}>{dayLabel(purchasedAt.toISOString())}</Text>
           </Pressable>
         </Pressable>
+
+        {recent.length ? (
+          <View style={{ paddingBottom: 20 }}>
+            <Caps style={{ paddingHorizontal: 20, paddingBottom: 10 }}>Recent</Caps>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }} keyboardShouldPersistTaps="handled">
+              {recent.map((e) => (
+                <Pressable key={e.id} onPress={() => useRecent(e)} style={styles.recent} accessibilityRole="button" accessibilityLabel={`${e.item_name}, ${ccy.symbol} ${grouped(e.amount)}`}>
+                  <Text style={styles.recentName} numberOfLines={1}>{e.item_name}</Text>
+                  <Text style={styles.recentAmt}>{ccy.symbol} {grouped(e.amount)} · {e.spending_list?.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        ) : null}
 
         <View style={styles.group}>
           <Caps>For</Caps>
@@ -264,6 +309,13 @@ const styles = StyleSheet.create({
   },
   chipLabel: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.ink },
   group: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
+  sumPreview: { fontFamily: fonts.mono, fontSize: 18, color: colors.inkSoft },
+  ops: { flexDirection: 'row', gap: 10 },
+  op: { width: 52, height: 40, borderRadius: 12, backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  opText: { fontFamily: fonts.sansMedium, fontSize: 22, color: colors.ink },
+  recent: { maxWidth: 180, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 1.5, borderColor: colors.rule, gap: 2 },
+  recentName: { fontFamily: fonts.sansMedium, fontSize: 14, color: colors.ink },
+  recentAmt: { fontFamily: fonts.sans, fontSize: 12, color: colors.inkSoft },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill: { height: 44, paddingHorizontal: 18, borderRadius: 22, justifyContent: 'center' },
   pillOn: { backgroundColor: colors.ink },
